@@ -64,3 +64,19 @@ Every implementation or code modification must be accompanied by appropriate aut
    - **NEVER** add any new dependency or package to `pubspec.yaml` without asking the user and obtaining explicit approval first.
 3. **Clarification Gate**:
    - Always ask clarifying questions before implementing any feature in ambiguous fields or requirements instead of making assumptions or guessing unilaterally.
+
+## 7. Version Control & Git Commit Standards
+1. **Commit Every Change**:
+   - Make an appropriate Git commit after any and every change or implementation is completed and verified.
+2. **Industry-Standard Commit Format (Conventional Commits)**:
+   - Use standard Conventional Commits: `<type>(<scope>): <description>`
+   - Types:
+     - `feat`: New feature or capability.
+     - `fix`: Bug fix.
+     - `test`: Adding or modifying tests.
+     - `refactor`: Code restructuring without external behavior changes.
+     - `chore`: Tooling, configuration, build script, or dependency update.
+     - `docs`: Documentation, guidelines, or prompt updates.
+   - Message style: Clear, imperative, and descriptive (e.g., `feat(canvas): implement project model and hive adapters`).
+3. **Verification Before Commit**:
+   - Verify that `flutter analyze` passes with 0 errors and 0 warnings and relevant tests pass before committing.
