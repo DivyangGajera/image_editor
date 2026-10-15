@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_editor/features/canvas/data/project_repository.dart';
-import 'package:image_editor/features/layers/domain/models/models.dart';
+import 'package:image_editor/features/layers/layers.dart';
 
 /// Pure presentation widget rendering the visual content of any [CanvasLayer].
 class LayerRenderer extends ConsumerWidget {
@@ -62,41 +62,7 @@ class LayerRenderer extends ConsumerWidget {
   }
 
   Widget _renderTextLayer(BuildContext context, TextLayer layer) {
-    final textStyle = TextStyle(
-      fontSize: layer.fontSize,
-      color: Color(layer.textColorValue),
-      fontFamily: layer.fontFamily,
-      fontWeight: layer.isBold ? FontWeight.bold : FontWeight.normal,
-      fontStyle: layer.isItalic ? FontStyle.italic : FontStyle.normal,
-      shadows: layer.shadowColorValue != null
-          ? <Shadow>[
-              Shadow(
-                color: Color(layer.shadowColorValue!),
-                blurRadius: 4.0,
-                offset: const Offset(2.0, 2.0),
-              ),
-            ]
-          : null,
-    );
-
-    Widget textWidget = Text(
-      layer.text,
-      style: textStyle,
-      textAlign: TextAlign.center,
-    );
-
-    if (layer.boxColorValue != null) {
-      textWidget = Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
-        decoration: BoxDecoration(
-          color: Color(layer.boxColorValue!),
-          borderRadius: BorderRadius.circular(layer.boxBorderRadius),
-        ),
-        child: textWidget,
-      );
-    }
-
-    return textWidget;
+    return TextLayerWidget(layer: layer);
   }
 
   Widget _renderDoodleLayer(BuildContext context, DoodleLayer layer) {
