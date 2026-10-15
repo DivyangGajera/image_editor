@@ -145,6 +145,25 @@ class CanvasNotifier extends FamilyNotifier<CanvasState, ProjectModel> {
     await _projectRepository.saveProject(updatedProject);
   }
 
+  /// Replaces an existing layer with [layer], records history, and persists updates.
+  Future<void> updateLayer(CanvasLayer layer) async {
+    final index = state.project.layers.indexWhere((l) => l.id == layer.id);
+    if (index == -1) return;
+
+    await _historyNotifier.pushState(state.project.layers);
+
+    final updatedLayers = List<CanvasLayer>.from(state.project.layers);
+    updatedLayers[index] = layer;
+
+    final updatedProject = state.project.copyWith(
+      layers: updatedLayers,
+      updatedAt: DateTime.now(),
+    );
+
+    state = state.copyWith(project: updatedProject);
+    await _projectRepository.saveProject(updatedProject);
+  }
+
   /// Reorders layer from [oldIndex] to [newIndex] and recalculates sequential zIndices.
   Future<void> reorderLayer(int oldIndex, int newIndex) async {
     final layers = state.project.layers;

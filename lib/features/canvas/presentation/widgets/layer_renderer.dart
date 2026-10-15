@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_editor/core/utils/color_filters.dart';
 import 'package:image_editor/features/canvas/data/project_repository.dart';
 import 'package:image_editor/features/layers/layers.dart';
 
@@ -50,10 +51,21 @@ class LayerRenderer extends ConsumerWidget {
 
         if (layer.isFlippedHorizontally) {
           content = Transform(
+            key: const ValueKey('horizontal_flip_transform'),
             alignment: Alignment.center,
             transform: Matrix4.diagonal3Values(-1.0, 1.0, 1.0),
             child: content,
           );
+        }
+
+        if (layer.activeFilter != null) {
+          final filter = AppColorFilters.getFilterByName(layer.activeFilter);
+          if (filter != null) {
+            content = ColorFiltered(
+              colorFilter: filter,
+              child: content,
+            );
+          }
         }
 
         return content;

@@ -53,6 +53,7 @@ class ImageLayer extends CanvasLayer {
     String? relativeImagePath,
     bool? isFlippedHorizontally,
     String? activeFilter,
+    bool clearActiveFilter = false,
     List<double>? cropRect,
   }) {
     return ImageLayer(
@@ -66,7 +67,8 @@ class ImageLayer extends CanvasLayer {
       relativeImagePath: relativeImagePath ?? this.relativeImagePath,
       isFlippedHorizontally:
           isFlippedHorizontally ?? this.isFlippedHorizontally,
-      activeFilter: activeFilter ?? this.activeFilter,
+      activeFilter:
+          clearActiveFilter ? null : (activeFilter ?? this.activeFilter),
       cropRect: cropRect ?? (this.cropRect != null ? List<double>.from(this.cropRect!) : null),
     );
   }
