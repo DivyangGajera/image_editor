@@ -166,5 +166,57 @@ void main() {
       final repo = container.read(projectRepositoryProvider);
       expect(repo, isA<ProjectRepository>());
     });
+
+    test('multi-project sandboxing guarantees strict isolation between project directories', () async {
+      const projA = 'proj-sandbox-a';
+      const projB = 'proj-sandbox-b';
+
+      final bytesA = Uint8List.fromList(<int>[10, 20, 30, 40]);
+      final bytesB = Uint8List.fromList(<int>[50, 60, 70, 80]);
+
+      final pathA = await repository.saveLayerImage(projA, bytesA, 'img.png');
+      final pathB = await repository.saveLayerImage(projB, bytesB, 'img.png');
+
+      expect(pathA, equals('projects/$projA/images/img.png'));
+      expect(pathB, equals('projects/$projB/images/img.png'));
+
+      final fileA = await repository.resolveRelativePath(pathA);
+      final fileB = await repository.resolveRelativePath(pathB);
+
+      expect(await fileA.readAsBytes(), equals(bytesA));
+      expect(await fileB.readAsBytes(), equals(bytesB));
+      expect(fileA.path, isNot(equals(fileB.path)));
+
+      // Deleting projA does NOT affect projB
+      await repository.deleteProject(projA);
+
+      expect(await fileA.exists(), isFalse);
+      expect(await fileB.exists(), isTrue);
+      expect(await fileB.readAsBytes(), equals(bytesB));
+
+      // Clean up projB
+      await repository.deleteProject(projB);
+      expect(await fileB.exists(), isFalse);
+    });
+
+    test('deleteProject handles multi-file directories and idempotent calls cleanly', () async {
+      const projMulti = 'proj-multi-files';
+      final dummyBytes = Uint8List.fromList(<int>[1, 2, 3]);
+
+      for (int i = 0; i < 5; i++) {
+        await repository.saveLayerImage(projMulti, dummyBytes, 'layer_$i.png');
+      }
+
+      final dir = await repository.getProjectDirectory(projMulti);
+      expect(await dir.exists(), isTrue);
+      expect((await dir.list(recursive: true).toList()).length, greaterThanOrEqualTo(5));
+
+      // Delete project
+      await repository.deleteProject(projMulti);
+      expect(await dir.exists(), isFalse);
+
+      // Idempotent deletion on already-deleted project should succeed without error
+      await expectLater(repository.deleteProject(projMulti), completes);
+    });
   });
 }

@@ -189,5 +189,58 @@ void main() {
       expect(container.read(canvasNotifierProvider(project)).selectedLayerId, isNull);
       expect(find.byIcon(Icons.close), findsNothing);
     });
+
+    testWidgets('dragging selected layer updates coordinates via gesture input', (tester) async {
+      final container = ProviderContainer(
+        overrides: <Override>[
+          projectRepositoryProvider.overrideWithValue(projectRepository),
+          historyManagerProvider(project.id).overrideWithValue(historyManager),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(createTestApp(container));
+      await tester.pumpAndSettle();
+
+      final initialX = container.read(canvasNotifierProvider(project)).project.layers.first.x;
+      final initialY = container.read(canvasNotifierProvider(project)).project.layers.first.y;
+
+      // Tap to select layer 1
+      await tester.tap(find.text('Title Heading'));
+      await tester.pumpAndSettle();
+
+      // Drag layer by 150px right and 150px down within runAsync to handle Hive async persistence
+      await tester.runAsync(() async {
+        await tester.drag(find.text('Title Heading'), const Offset(150.0, 150.0));
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      });
+      await tester.pumpAndSettle();
+
+      final updatedLayer = container.read(canvasNotifierProvider(project)).project.layers.first;
+      expect(updatedLayer.x, isNot(equals(initialX)));
+      expect(updatedLayer.y, isNot(equals(initialY)));
+      expect(updatedLayer.x, greaterThan(initialX));
+      expect(updatedLayer.y, greaterThan(initialY));
+    });
+
+    testWidgets('renders properly without RenderFlex overflow on compact viewports', (tester) async {
+      final container = ProviderContainer(
+        overrides: <Override>[
+          projectRepositoryProvider.overrideWithValue(projectRepository),
+          historyManagerProvider(project.id).overrideWithValue(historyManager),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      tester.view.physicalSize = const Size(320, 480);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(createTestApp(container));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Title Heading'), findsOneWidget);
+    });
   });
 }

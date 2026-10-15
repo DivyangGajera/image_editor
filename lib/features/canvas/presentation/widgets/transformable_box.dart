@@ -43,6 +43,11 @@ class _TransformableBoxState extends State<TransformableBox> {
   double _startScale = 1.0;
   double _startRotation = 0.0;
 
+  double _currentX = 0.5;
+  double _currentY = 0.5;
+  double _currentScale = 1.0;
+  double _currentRotation = 0.0;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -73,10 +78,10 @@ class _TransformableBoxState extends State<TransformableBox> {
                     onScaleStart: (details) {
                       widget.onSelect();
                       _startFocalPoint = details.focalPoint;
-                      _startX = widget.layer.x;
-                      _startY = widget.layer.y;
-                      _startScale = widget.layer.scale;
-                      _startRotation = widget.layer.rotation;
+                      _startX = _currentX = widget.layer.x;
+                      _startY = _currentY = widget.layer.y;
+                      _startScale = _currentScale = widget.layer.scale;
+                      _startRotation = _currentRotation = widget.layer.rotation;
                     },
                     onScaleUpdate: (details) {
                       if (widget.canvasSize.width <= 0 || widget.canvasSize.height <= 0) return;
@@ -84,26 +89,26 @@ class _TransformableBoxState extends State<TransformableBox> {
                       final deltaX = (details.focalPoint.dx - _startFocalPoint.dx) / widget.canvasSize.width;
                       final deltaY = (details.focalPoint.dy - _startFocalPoint.dy) / widget.canvasSize.height;
 
-                      final newX = (_startX + deltaX).clamp(-0.5, 1.5);
-                      final newY = (_startY + deltaY).clamp(-0.5, 1.5);
-                      final newScale = (_startScale * details.scale).clamp(0.1, 10.0);
-                      final newRotation = _startRotation + details.rotation;
+                      _currentX = (_startX + deltaX).clamp(-0.5, 1.5);
+                      _currentY = (_startY + deltaY).clamp(-0.5, 1.5);
+                      _currentScale = (_startScale * details.scale).clamp(0.1, 10.0);
+                      _currentRotation = _startRotation + details.rotation;
 
                       widget.onTransformUpdate(
-                        x: newX,
-                        y: newY,
-                        scale: newScale,
-                        rotation: newRotation,
+                        x: _currentX,
+                        y: _currentY,
+                        scale: _currentScale,
+                        rotation: _currentRotation,
                         recordHistory: false, // Don't flood history on micro-updates
                       );
                     },
                     onScaleEnd: (details) {
                       // Record final state to history
                       widget.onTransformUpdate(
-                        x: widget.layer.x,
-                        y: widget.layer.y,
-                        scale: widget.layer.scale,
-                        rotation: widget.layer.rotation,
+                        x: _currentX,
+                        y: _currentY,
+                        scale: _currentScale,
+                        rotation: _currentRotation,
                         recordHistory: true,
                       );
                     },
