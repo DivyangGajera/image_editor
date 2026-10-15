@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_editor/core/constants/app_constants.dart';
+import 'package:image_editor/features/collage/collage.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -76,6 +77,30 @@ class ImageEditorHomeScreen extends StatelessWidget {
               'Select or create a project to start editing',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 24.0),
+            ElevatedButton.icon(
+              key: const ValueKey('open_collage_setup_button'),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const CollageSetupScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.auto_awesome_mosaic_outlined),
+              label: const Text('Collage & Filmstrip Maker'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4E95FF),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20.0,
+                  vertical: 12.0,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12.0),
+                ),
               ),
             ),
           ],

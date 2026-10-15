@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_editor/core/constants/app_constants.dart';
@@ -14,5 +15,6 @@ void main() {
     // Verify app title in AppBar and initial canvas placeholder text
     expect(find.text(AppConstants.appTitle), findsOneWidget);
     expect(find.text('Offline Canvas Ready'), findsOneWidget);
+    expect(find.byKey(const ValueKey('open_collage_setup_button')), findsOneWidget);
   });
 }
