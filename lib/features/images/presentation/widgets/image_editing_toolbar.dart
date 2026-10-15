@@ -1,19 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_editor/features/canvas/application/canvas_notifier.dart';
+import 'package:image_editor/features/canvas/data/project_repository.dart';
 import 'package:image_editor/features/canvas/domain/models/project_model.dart';
 import 'package:image_editor/features/images/presentation/widgets/filter_selector_bar.dart';
 import 'package:image_editor/features/layers/domain/models/image_layer.dart';
+import 'package:image_editor/features/segmentation/application/segmentation_notifier.dart';
+import 'package:image_editor/features/segmentation/presentation/widgets/segmentation_progress_bar.dart';
 
 /// Contextual bottom editing toolbar displayed when an [ImageLayer] is selected on the canvas.
 ///
-/// Enables flipping the image horizontally and switching GPU-accelerated color filters.
+/// Enables flipping the image horizontally, switching GPU-accelerated color filters,
+/// and extracting foreground subjects via offline ML Kit selfie segmentation.
 class ImageEditingToolbar extends ConsumerWidget {
   const ImageEditingToolbar({
     super.key,
     required this.layer,
     required this.project,
     this.onLayerChanged,
+    this.onRemoveBackground,
   });
 
   /// The active image layer being configured.
@@ -24,6 +29,9 @@ class ImageEditingToolbar extends ConsumerWidget {
 
   /// Optional notification callback when layer properties change.
   final ValueChanged<ImageLayer>? onLayerChanged;
+
+  /// Optional custom callback invoked when remove background is pressed.
+  final Future<void> Function()? onRemoveBackground;
 
   void _toggleFlip(WidgetRef ref) {
     final updated = layer.copyWith(
@@ -42,6 +50,33 @@ class ImageEditingToolbar extends ConsumerWidget {
     onLayerChanged?.call(updated);
   }
 
+  Future<void> _handleRemoveBackground(BuildContext context, WidgetRef ref) async {
+    if (onRemoveBackground != null) {
+      await onRemoveBackground!();
+      return;
+    }
+
+    try {
+      final projectRepo = ref.read(projectRepositoryProvider);
+      final file = await projectRepo.resolveRelativePath(layer.relativeImagePath);
+      final cutoutLayer = await ref
+          .read(segmentationNotifierProvider.notifier)
+          .extractBackground(
+            sourceImagePath: file.path,
+            projectId: project.id,
+          );
+      if (cutoutLayer != null) {
+        ref.read(canvasNotifierProvider(project).notifier).addLayer(cutoutLayer);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to extract background: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Container(
@@ -58,6 +93,9 @@ class ImageEditingToolbar extends ConsumerWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Non-blocking progress indicator
+          const SegmentationProgressBar(),
+
           // Filter carousel
           FilterSelectorBar(
             selectedFilterId: layer.activeFilter,
@@ -66,11 +104,13 @@ class ImageEditingToolbar extends ConsumerWidget {
           const SizedBox(height: 8.0),
           const Divider(color: Color(0xFF2E2E40), height: 1.0),
           const SizedBox(height: 6.0),
-          // Action controls: Horizontal Flip toggle
+          // Action controls: Horizontal Flip & Background Removal
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 12.0,
+              runSpacing: 8.0,
               children: [
                 OutlinedButton.icon(
                   key: const ValueKey('flip_horizontal_button'),
@@ -107,7 +147,37 @@ class ImageEditingToolbar extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(20.0),
                     ),
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 16.0,
+                      horizontal: 14.0,
+                      vertical: 8.0,
+                    ),
+                  ),
+                ),
+                OutlinedButton.icon(
+                  key: const ValueKey('remove_background_button'),
+                  onPressed: () => _handleRemoveBackground(context, ref),
+                  icon: const Icon(
+                    Icons.auto_awesome,
+                    size: 18.0,
+                    color: Color(0xFF4E95FF),
+                  ),
+                  label: const Text(
+                    'Cutout Subject',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12.0,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1E1E2C),
+                    side: const BorderSide(
+                      color: Color(0xFF4E95FF),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20.0),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14.0,
                       vertical: 8.0,
                     ),
                   ),

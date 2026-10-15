@@ -83,6 +83,7 @@ void main() {
     Widget buildTestableWidget({
       required ImageLayer layer,
       ValueChanged<ImageLayer>? onLayerChanged,
+      Future<void> Function()? onRemoveBackground,
     }) {
       testContainer = ProviderContainer(
         overrides: [
@@ -99,6 +100,7 @@ void main() {
               layer: layer,
               project: testProject,
               onLayerChanged: onLayerChanged,
+              onRemoveBackground: onRemoveBackground,
             ),
           ),
         ),
@@ -116,6 +118,8 @@ void main() {
       expect(find.text('High Contrast'), findsOneWidget);
       expect(find.text('Flip Horizontally'), findsOneWidget);
       expect(find.byKey(const ValueKey('flip_horizontal_button')), findsOneWidget);
+      expect(find.text('Cutout Subject'), findsOneWidget);
+      expect(find.byKey(const ValueKey('remove_background_button')), findsOneWidget);
     });
 
     testWidgets('tapping Grayscale filter updates activeFilter in CanvasNotifier', (tester) async {
@@ -201,6 +205,25 @@ void main() {
       final canvasState = testContainer!.read(canvasNotifierProvider(testProject));
       final currentLayer = canvasState.project.layers.first as ImageLayer;
       expect(currentLayer.isFlippedHorizontally, isTrue);
+    });
+
+    testWidgets('tapping Cutout Subject invokes onRemoveBackground callback', (tester) async {
+      bool removeBgInvoked = false;
+
+      await tester.pumpWidget(
+        buildTestableWidget(
+          layer: testLayer,
+          onRemoveBackground: () async {
+            removeBgInvoked = true;
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('remove_background_button')));
+      await tester.pumpAndSettle();
+
+      expect(removeBgInvoked, isTrue);
     });
   });
 }
