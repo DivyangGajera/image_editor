@@ -38,7 +38,7 @@ void main() {
         relativeImagePath: 'projects/p1/images/layer_1.png',
         isFlippedHorizontally: false,
         activeFilter: 'grayscale',
-        cropRect: <double>[0.1, 0.1, 0.9, 0.9],
+        originalImagePath: 'projects/p1/images/orig.png',
       );
 
       test('instantiates with expected properties and defaults', () {
@@ -58,7 +58,8 @@ void main() {
         expect(defaultLayer.isVisible, isTrue);
         expect(defaultLayer.isFlippedHorizontally, isFalse);
         expect(defaultLayer.activeFilter, isNull);
-        expect(defaultLayer.cropRect, isNull);
+        expect(defaultLayer.originalImagePath, isNull);
+        expect(defaultLayer.isCropped, isFalse);
       });
 
       test('copyWith preserves unchanged values and replaces updated ones', () {
@@ -66,7 +67,7 @@ void main() {
           x: 0.8,
           scale: 2.0,
           isFlippedHorizontally: true,
-          cropRect: <double>[0.0, 0.0, 1.0, 1.0],
+          originalImagePath: 'projects/p1/images/orig.png',
         );
 
         expect(updated.id, initialLayer.id);
@@ -76,7 +77,8 @@ void main() {
         expect(updated.rotation, initialLayer.rotation);
         expect(updated.isFlippedHorizontally, isTrue);
         expect(updated.activeFilter, initialLayer.activeFilter);
-        expect(updated.cropRect, <double>[0.0, 0.0, 1.0, 1.0]);
+        expect(updated.originalImagePath, 'projects/p1/images/orig.png');
+        expect(updated.isCropped, isTrue);
       });
 
       test('equality and hashCode contract', () {
@@ -98,7 +100,7 @@ void main() {
         final retrievedImg = retrieved! as ImageLayer;
         expect(retrievedImg.relativeImagePath, initialLayer.relativeImagePath);
         expect(retrievedImg.activeFilter, 'grayscale');
-        expect(retrievedImg.cropRect, <double>[0.1, 0.1, 0.9, 0.9]);
+        expect(retrievedImg.originalImagePath, 'projects/p1/images/orig.png');
       });
     });
 
