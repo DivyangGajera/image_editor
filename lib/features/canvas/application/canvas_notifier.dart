@@ -84,14 +84,16 @@ class CanvasNotifier extends _$CanvasNotifier {
 
   @override
   Future<CanvasState> build(String projectId) async {
-    // Keep this project's history alive for as long as the canvas is in use,
-    // without rebuilding the canvas whenever the history metrics change.
-    ref.listen(historyProvider(projectId), (_, _) {});
-
     final project = await ref.read(projectRepositoryProvider).loadProject(projectId);
     if (project == null) {
       throw StateError('Project "$projectId" was not found.');
     }
+
+    // Keep this project's history alive for as long as the canvas is in use,
+    // without rebuilding the canvas whenever the history metrics change.
+    // Subscribed only once the project exists, so no orphan history is created.
+    ref.listen(historyProvider(projectId), (_, _) {});
+
     return CanvasState(project: project);
   }
 

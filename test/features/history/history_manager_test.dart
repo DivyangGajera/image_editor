@@ -3,32 +3,26 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
+import 'package:image_editor/core/storage/app_bootstrap.dart';
 import 'package:image_editor/features/history/history.dart';
 import 'package:image_editor/features/layers/domain/models/models.dart';
 
 void main() {
-  group('HistoryManager (500-step Dual-Tier Engine)', () {
+  group('HistoryManager (persistent 500-step engine)', () {
     late Directory tempDir;
-    late Box<List<dynamic>> historyBox;
+    late LazyBox<List<dynamic>> historyBox;
     late HistoryManager manager;
     const testProjectId = 'proj-undo-test-1';
 
-    setUpAll(() {
-      if (!Hive.isAdapterRegistered(0)) Hive.registerAdapter(ImageLayerAdapter());
-      if (!Hive.isAdapterRegistered(1)) Hive.registerAdapter(TextLayerAdapter());
-      if (!Hive.isAdapterRegistered(2)) Hive.registerAdapter(DoodleLayerAdapter());
-      if (!Hive.isAdapterRegistered(3)) Hive.registerAdapter(StickerLayerAdapter());
-    });
+    setUpAll(AppBootstrap.registerAdapters);
 
     setUp(() async {
       tempDir = await Directory.systemTemp.createTemp('hive_history_test_');
       Hive.init(tempDir.path);
-      historyBox = await Hive.openBox<List<dynamic>>('history_$testProjectId');
-
-      manager = HistoryManager(
-        projectId: testProjectId,
-        historyBox: historyBox,
+      historyBox = await Hive.openLazyBox<List<dynamic>>(
+        HistoryManager.boxNameFor(testProjectId),
       );
+      manager = HistoryManager(projectId: testProjectId, historyBox: historyBox);
     });
 
     tearDown(() async {
@@ -40,15 +34,36 @@ void main() {
     });
 
     TextLayer makeTextLayer(int index) {
-      return TextLayer(
-        id: 'layer-$index',
-        x: 0.5,
-        y: 0.5,
-        text: 'State $index',
-      );
+      return TextLayer(id: 'layer-$index', x: 0.5, y: 0.5, text: 'State $index');
     }
 
-    test('initial state has empty stacks', () {
+    List<CanvasLayer> snapshot(int index) => <CanvasLayer>[makeTextLayer(index)];
+
+    String textOf(List<CanvasLayer>? layers) => (layers!.first as TextLayer).text;
+
+    /// Simulates an app restart: closes everything and opens a fresh manager
+    /// on the same box file.
+    Future<HistoryManager> reopen({int? inMemoryLimit, int? prefetchTrigger}) async {
+      await manager.dispose();
+      await Hive.close();
+      Hive.init(tempDir.path);
+      historyBox = await Hive.openLazyBox<List<dynamic>>(
+        HistoryManager.boxNameFor(testProjectId),
+      );
+      manager = HistoryManager(
+        projectId: testProjectId,
+        historyBox: historyBox,
+        inMemoryLimit: inMemoryLimit,
+        prefetchTrigger: prefetchTrigger,
+      );
+      await manager.load();
+      return manager;
+    }
+
+    test('initial state has empty stacks', () async {
+      await manager.load();
+
+      expect(manager.isLoaded, isTrue);
       expect(manager.canUndo, isFalse);
       expect(manager.canRedo, isFalse);
       expect(manager.inMemoryUndoCount, 0);
@@ -58,114 +73,174 @@ void main() {
     });
 
     test('push, undo, and redo cycles maintain correct layer states', () async {
-      final state1 = <CanvasLayer>[makeTextLayer(1)];
-      final state2 = <CanvasLayer>[makeTextLayer(2)];
-      final state3 = <CanvasLayer>[makeTextLayer(3)];
-
-      await manager.pushState(state1);
-      await manager.pushState(state2);
+      await manager.pushState(snapshot(1));
+      await manager.pushState(snapshot(2));
 
       expect(manager.canUndo, isTrue);
       expect(manager.canRedo, isFalse);
       expect(manager.totalUndoCount, 2);
 
-      // Undo from state 3 to state 2
-      final undoneToState2 = await manager.undo(state3);
-      expect(undoneToState2, equals(state2));
+      expect(await manager.undo(snapshot(3)), equals(snapshot(2)));
       expect(manager.canRedo, isTrue);
-
-      // Undo from state 2 to state 1
-      final undoneToState1 = await manager.undo(state2);
-      expect(undoneToState1, equals(state1));
-
-      // Redo back to state 2
-      final redoneToState2 = await manager.redo(state1);
-      expect(redoneToState2, equals(state2));
+      expect(await manager.undo(snapshot(2)), equals(snapshot(1)));
+      expect(await manager.redo(snapshot(1)), equals(snapshot(2)));
     });
 
-    test('pushing new state invalidates redo stack', () async {
-      final s1 = <CanvasLayer>[makeTextLayer(1)];
-      final s2 = <CanvasLayer>[makeTextLayer(2)];
-      final sBranch = <CanvasLayer>[makeTextLayer(99)];
-
-      await manager.pushState(s1);
-      await manager.pushState(s2);
-
-      // Undo to s1, so s2 is on redo stack
-      await manager.undo(s2);
-      expect(manager.canRedo, isTrue);
-      expect(manager.redoCount, 1);
-
-      // Push alternative branch
-      await manager.pushState(sBranch);
+    test('undo with nothing to undo returns null and leaves redo untouched', () async {
+      expect(await manager.undo(snapshot(1)), isNull);
       expect(manager.canRedo, isFalse);
       expect(manager.redoCount, 0);
     });
 
-    test('memory boundary spillover: pushing 60 actions caps RAM at 50 and spills 10 to disk', () async {
-      for (var i = 1; i <= 60; i++) {
-        await manager.pushState(<CanvasLayer>[makeTextLayer(i)]);
-      }
+    test('redo with nothing to redo returns null and leaves undo untouched', () async {
+      await manager.pushState(snapshot(1));
 
-      // Assert RAM ceiling
-      expect(manager.inMemoryUndoCount, 50);
-      expect(manager.inMemoryUndoCount, lessThanOrEqualTo(50));
-
-      // Assert Hive disk spillover count
-      expect(manager.diskUndoCount, 10);
-      expect(manager.totalUndoCount, 60);
-      expect(historyBox.length, 10);
+      expect(await manager.redo(snapshot(2)), isNull);
+      expect(manager.totalUndoCount, 1);
     });
 
-    test('disk recovery: un-doing through spillover restores earliest pushed states', () async {
+    test('pushing a new state invalidates the redo branch on disk', () async {
+      await manager.pushState(snapshot(1));
+      await manager.pushState(snapshot(2));
+      await manager.undo(snapshot(3));
+      await manager.undo(snapshot(2));
+      expect(manager.redoCount, 2);
+
+      await manager.pushState(snapshot(99));
+
+      expect(manager.canRedo, isFalse);
+      expect(manager.redoCount, 0);
+      expect(await historyBox.get(HistoryManager.redoKeyBase), isNull);
+      expect(await historyBox.get(HistoryManager.redoKeyBase + 1), isNull);
+    });
+
+    test('RAM cache is capped at 50 while every snapshot is written to disk', () async {
       for (var i = 1; i <= 60; i++) {
-        await manager.pushState(<CanvasLayer>[makeTextLayer(i)]);
+        await manager.pushState(snapshot(i));
       }
 
-      var current = <CanvasLayer>[makeTextLayer(61)];
+      expect(manager.inMemoryUndoCount, 50);
+      expect(manager.diskUndoCount, 10);
+      expect(manager.totalUndoCount, 60);
+      // 60 snapshots + the meta record.
+      expect(historyBox.length, 61);
+    });
 
-      // Undo 59 times down to the first state
-      for (var i = 60; i >= 2; i--) {
+    test('undoing past the RAM window restores the earliest states from disk', () async {
+      for (var i = 1; i <= 60; i++) {
+        await manager.pushState(snapshot(i));
+      }
+
+      var current = snapshot(61);
+      for (var i = 60; i >= 1; i--) {
         final previous = await manager.undo(current);
-        expect(previous, isNotNull);
-        expect((previous!.first as TextLayer).text, 'State $i');
-        current = previous;
+        expect(textOf(previous), 'State $i');
+        current = previous!;
       }
 
-      // Final undo gives State 1
-      final state1 = await manager.undo(current);
-      expect(state1, isNotNull);
-      expect((state1!.first as TextLayer).text, 'State 1');
-
-      // Now stack is exhausted
       expect(manager.canUndo, isFalse);
     });
 
-    test('enforces maxDepth ceiling by purging oldest disk frames', () async {
-      final customManager = HistoryManager(
-        projectId: 'custom-cap-test',
+    test('prefetch refills the RAM window in the background when it runs low', () async {
+      manager = HistoryManager(
+        projectId: testProjectId,
+        historyBox: historyBox,
+        inMemoryLimit: 10,
+        prefetchTrigger: 3,
+      );
+      for (var i = 1; i <= 30; i++) {
+        await manager.pushState(snapshot(i));
+      }
+      expect(manager.inMemoryUndoCount, 10);
+
+      var current = snapshot(31);
+      for (var i = 0; i < 8; i++) {
+        current = (await manager.undo(current))!;
+      }
+      await manager.flushPrefetch();
+
+      expect(manager.inMemoryUndoCount, 10);
+      expect(manager.totalUndoCount, 22);
+      expect(manager.isPrefetching, isFalse);
+    });
+
+    test('enforces the maxDepth ceiling by evicting the oldest snapshots', () async {
+      manager = HistoryManager(
+        projectId: testProjectId,
         historyBox: historyBox,
         maxDepth: 15,
         inMemoryLimit: 5,
         prefetchTrigger: 2,
       );
 
-      // Push 25 states (exceeding maxDepth of 15)
       for (var i = 1; i <= 25; i++) {
-        await customManager.pushState(<CanvasLayer>[makeTextLayer(i)]);
+        await manager.pushState(snapshot(i));
       }
 
-      // Should be strictly capped at 15
-      expect(customManager.inMemoryUndoCount, 5);
-      expect(customManager.diskUndoCount, 10);
-      expect(customManager.totalUndoCount, 15);
+      expect(manager.inMemoryUndoCount, 5);
+      expect(manager.diskUndoCount, 10);
+      expect(manager.totalUndoCount, 15);
+      expect(await historyBox.get(9), isNull, reason: 'State 10 was evicted');
+
+      // The oldest reachable state is now State 11.
+      var current = snapshot(26);
+      List<CanvasLayer>? last;
+      while (manager.canUndo) {
+        last = await manager.undo(current);
+        current = last!;
+      }
+      expect(textOf(last), 'State 11');
     });
 
-    test('clear purges both in-memory stacks and Hive box', () async {
-      for (var i = 1; i <= 55; i++) {
-        await manager.pushState(<CanvasLayer>[makeTextLayer(i)]);
+    test('undo and redo history survive an app restart', () async {
+      for (var i = 1; i <= 70; i++) {
+        await manager.pushState(snapshot(i));
       }
-      expect(manager.totalUndoCount, 55);
+      await manager.undo(snapshot(71));
+      await manager.undo(snapshot(70));
+
+      final restarted = await reopen();
+
+      expect(restarted.totalUndoCount, 68);
+      expect(restarted.redoCount, 2);
+      expect(restarted.inMemoryUndoCount, 50);
+      expect(textOf(await restarted.undo(snapshot(69))), 'State 68');
+      expect(textOf(await restarted.redo(snapshot(68))), 'State 69');
+      expect(textOf(await restarted.redo(snapshot(69))), 'State 70');
+    });
+
+    test('a missing snapshot on disk truncates history instead of misaligning', () async {
+      manager = HistoryManager(
+        projectId: testProjectId,
+        historyBox: historyBox,
+        inMemoryLimit: 5,
+      );
+      for (var i = 1; i <= 12; i++) {
+        await manager.pushState(snapshot(i));
+      }
+      // Simulate a lost write for State 4 (key 3), outside the RAM window.
+      await historyBox.delete(3);
+
+      final restarted = await reopen(inMemoryLimit: 5, prefetchTrigger: 1);
+
+      var current = snapshot(13);
+      final reverted = <String>[];
+      while (restarted.canUndo) {
+        final previous = await restarted.undo(current);
+        if (previous == null) break;
+        reverted.add(textOf(previous));
+        current = previous;
+      }
+
+      expect(reverted.first, 'State 12');
+      expect(reverted.last, 'State 5');
+      expect(restarted.canUndo, isFalse);
+    });
+
+    test('clear purges RAM and disk', () async {
+      for (var i = 1; i <= 55; i++) {
+        await manager.pushState(snapshot(i));
+      }
 
       await manager.clear();
 
@@ -173,35 +248,46 @@ void main() {
       expect(manager.canRedo, isFalse);
       expect(manager.totalUndoCount, 0);
       expect(manager.inMemoryUndoCount, 0);
-      expect(manager.diskUndoCount, 0);
       expect(historyBox.isEmpty, isTrue);
     });
 
-    test('HistoryNotifier updates reactive state in Riverpod container', () async {
+    test('deleteFromDisk removes the persisted history of a project', () async {
+      await manager.pushState(snapshot(1));
+      await manager.dispose();
+
+      await HistoryManager.deleteFromDisk(testProjectId);
+
+      final fresh = await Hive.openLazyBox<List<dynamic>>(
+        HistoryManager.boxNameFor(testProjectId),
+      );
+      expect(fresh.isEmpty, isTrue);
+    });
+
+    test('HistoryNotifier publishes metrics, including after loading from disk', () async {
+      await manager.pushState(snapshot(1));
+      await manager.pushState(snapshot(2));
+      final restarted = await reopen();
+      // A manager that has not loaded yet, as on a cold start.
+      final coldManager = HistoryManager(projectId: testProjectId, historyBox: historyBox);
+      addTearDown(coldManager.dispose);
+      expect(restarted.totalUndoCount, 2);
+
       final container = ProviderContainer(
-        overrides: [
-          historyManagerProvider(testProjectId).overrideWithValue(manager),
-        ],
+        overrides: [historyManagerProvider(testProjectId).overrideWithValue(coldManager)],
       );
       addTearDown(container.dispose);
-
-      final notifier = container.read(historyProvider(testProjectId).notifier);
+      container.listen(historyProvider(testProjectId), (_, _) {});
 
       expect(container.read(historyProvider(testProjectId)).canUndo, isFalse);
+      await coldManager.load();
+      await Future<void>.delayed(Duration.zero);
+      expect(container.read(historyProvider(testProjectId)).totalUndoCount, 2);
 
-      await notifier.pushState(<CanvasLayer>[makeTextLayer(1)]);
-      final stateAfterPush = container.read(historyProvider(testProjectId));
-      expect(stateAfterPush.canUndo, isTrue);
-      expect(stateAfterPush.totalUndoCount, 1);
-
-      final undone = await notifier.undo(<CanvasLayer>[makeTextLayer(2)]);
-      expect(undone, isNotNull);
-      final stateAfterUndo = container.read(historyProvider(testProjectId));
-      expect(stateAfterUndo.canRedo, isTrue);
-
-      await notifier.redo(<CanvasLayer>[makeTextLayer(1)]);
-      final stateAfterRedo = container.read(historyProvider(testProjectId));
-      expect(stateAfterRedo.canRedo, isFalse);
+      final notifier = container.read(historyProvider(testProjectId).notifier);
+      await notifier.undo(snapshot(3));
+      final state = container.read(historyProvider(testProjectId));
+      expect(state.canRedo, isTrue);
+      expect(state.totalUndoCount, 1);
     });
   });
 }

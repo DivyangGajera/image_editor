@@ -6,235 +6,295 @@ import 'package:image_editor/core/constants/app_constants.dart';
 import 'package:image_editor/core/storage/storage_keys.dart';
 import 'package:image_editor/features/layers/domain/models/models.dart';
 
-/// Memory-efficient Undo/Redo Engine with a 500-step maximum depth.
+/// Persistent, memory-bounded undo/redo engine (default 500 steps) for one project.
 ///
-/// Maintains up to 50 active snapshots in RAM. When exceeding this threshold,
-/// older frames spill over into a dedicated Hive CE box (`history_<projectId>`).
-/// Pre-fetches preceding frames asynchronously when undo depth in RAM drops below 5.
+/// **Disk is the source of truth.** Every snapshot is written through to a
+/// project-specific Hive [LazyBox] (`history_<projectId>`) whose values are only
+/// read on demand, so undo/redo history survives app restarts without loading
+/// all 500 snapshots into memory.
+///
+/// **RAM is a cache window** holding at most [inMemoryLimit] of the newest undo
+/// snapshots. When successive undos shrink the window below [prefetchTrigger],
+/// the next batch of older snapshots is prefetched from disk in the background.
+///
+/// Box layout:
+/// * int keys `[undoBottom, undoTop)` — undo snapshots, oldest first.
+/// * int keys `redoKeyBase + [0, redoCount)` — redo stack, top is the last key.
+/// * `'meta'` — `[undoBottom, undoTop, redoCount]`.
+///
+/// All public operations run one at a time through an internal queue, so a
+/// background prefetch can never interleave with a push, undo or redo.
 class HistoryManager {
   HistoryManager({
     required this.projectId,
-    this.historyBox,
+    LazyBox<List<dynamic>>? historyBox,
     int? maxDepth,
     int? inMemoryLimit,
     int? prefetchTrigger,
-  })  : maxDepth = maxDepth ?? AppConstants.maxUndoHistoryDepth,
+  })  : _box = historyBox,
+        maxDepth = maxDepth ?? AppConstants.maxUndoHistoryDepth,
         inMemoryLimit = inMemoryLimit ?? AppConstants.inMemoryHistoryDepth,
         prefetchTrigger = prefetchTrigger ?? AppConstants.historyPrefetchThreshold;
+
+  /// Hive key under which the range metadata is stored.
+  static const String metaKey = 'meta';
+
+  /// First key of the redo stack, far above any reachable undo key.
+  static const int redoKeyBase = 0x40000000;
+
+  /// Box name holding the history of [projectId].
+  static String boxNameFor(String projectId) =>
+      '${StorageKeys.historyBoxPrefix}$projectId';
+
+  /// Permanently deletes the persisted history of [projectId] (e.g. when the
+  /// project itself is deleted). The box must not be open elsewhere.
+  static Future<void> deleteFromDisk(String projectId) =>
+      Hive.deleteBoxFromDisk(boxNameFor(projectId));
 
   final String projectId;
   final int maxDepth;
   final int inMemoryLimit;
   final int prefetchTrigger;
 
-  Box<List<dynamic>>? historyBox;
+  LazyBox<List<dynamic>>? _box;
 
-  final List<List<CanvasLayer>> _undoStack = <List<CanvasLayer>>[];
-  final List<List<CanvasLayer>> _redoStack = <List<CanvasLayer>>[];
+  /// Newest undo snapshots; covers keys `[_undoTop - length, _undoTop)`.
+  final List<List<CanvasLayer>> _undoCache = <List<CanvasLayer>>[];
 
-  int _diskBottomKey = 0;
-  int _diskTopKey = 0;
-  int _diskCount = 0;
+  int _undoBottom = 0;
+  int _undoTop = 0;
+  int _redoCount = 0;
+
+  bool _isLoaded = false;
   bool _isPrefetching = false;
-  Future<void>? _prefetchFuture;
+  Future<void> _queue = Future<void>.value();
 
-  /// Whether prefetching is currently executing.
+  /// Name of the backing Hive box.
+  String get boxName => boxNameFor(projectId);
+
+  /// Whether persisted history has been read from disk.
+  bool get isLoaded => _isLoaded;
+
+  /// Whether a background prefetch from disk is executing.
   bool get isPrefetching => _isPrefetching;
 
-  /// Current number of undo snapshots retained in RAM.
-  int get inMemoryUndoCount => _undoStack.length;
+  /// Number of undo snapshots currently cached in RAM.
+  int get inMemoryUndoCount => _undoCache.length;
 
-  /// Current number of undo snapshots persisted to disk.
-  int get diskUndoCount => _diskCount;
+  /// Number of undo snapshots that live only on disk (not cached in RAM).
+  int get diskUndoCount => totalUndoCount - _undoCache.length;
 
-  /// Total accessible undo steps across RAM and disk.
-  int get totalUndoCount => _undoStack.length + _diskCount;
+  /// Total number of undo steps available across RAM and disk.
+  int get totalUndoCount => _undoTop - _undoBottom;
 
-  /// Current number of redo snapshots in RAM.
-  int get redoCount => _redoStack.length;
+  /// Number of redo steps available.
+  int get redoCount => _redoCount;
 
-  /// Whether undo can be invoked.
-  bool get canUndo => _undoStack.isNotEmpty || _diskCount > 0;
+  bool get canUndo => totalUndoCount > 0;
 
-  /// Whether redo can be invoked.
-  bool get canRedo => _redoStack.isNotEmpty;
+  bool get canRedo => _redoCount > 0;
 
-  /// Box name for project-specific history.
-  String get boxName => '${StorageKeys.historyBoxPrefix}$projectId';
-
-  Future<Box<List<dynamic>>> _getBox() async {
-    if (historyBox != null && historyBox!.isOpen) {
-      return historyBox!;
-    }
-    if (Hive.isBoxOpen(boxName)) {
-      historyBox = Hive.box<List<dynamic>>(boxName);
-    } else {
-      historyBox = await Hive.openBox<List<dynamic>>(boxName);
-    }
-    return historyBox!;
-  }
-
-  /// Pushes a new canvas state onto the undo stack and clears redo history.
+  /// Reads persisted history (range metadata plus the newest cached window).
   ///
-  /// Spills the oldest in-memory frame to disk when exceeding [inMemoryLimit].
-  Future<void> pushState(List<CanvasLayer> layers) async {
-    // Invalidate redo stack upon pushing any new action branch
-    _redoStack.clear();
+  /// Safe to call repeatedly; every other operation loads implicitly.
+  Future<void> load() => _enqueue(_ensureLoaded);
 
-    // Deep copy layers to guarantee state immutability
-    final clonedSnapshot = layers.map((layer) => layer.copyWith()).toList();
-    _undoStack.add(clonedSnapshot);
-
-    // Check disk spillover
-    if (_undoStack.length > inMemoryLimit) {
-      final oldestInMemory = _undoStack.removeAt(0);
-      final box = await _getBox();
-
-      await box.put(_diskTopKey, oldestInMemory);
-      _diskTopKey++;
-      _diskCount++;
-
-      // Enforce total history depth ceiling
-      if (_diskCount + _undoStack.length > maxDepth) {
-        await box.delete(_diskBottomKey);
-        _diskBottomKey++;
-        _diskCount--;
-      }
-    }
+  /// Records [layers] as the newest undo snapshot and invalidates the redo branch.
+  Future<void> pushState(List<CanvasLayer> layers) {
+    return _enqueue(() async {
+      await _ensureLoaded();
+      await _clearRedo();
+      await _pushUndo(_clone(layers));
+      await _writeMeta();
+    });
   }
 
-  /// Reverts the canvas to the preceding state and pushes [currentLayers] onto the redo stack.
+  /// Returns the previous snapshot and stores [currentLayers] on the redo stack.
   ///
-  /// Asynchronously triggers pre-fetching from disk if in-memory frames drop below [prefetchTrigger].
-  Future<List<CanvasLayer>?> undo(List<CanvasLayer> currentLayers) async {
-    if (!canUndo) return null;
+  /// Returns `null` without side effects when there is nothing to undo.
+  Future<List<CanvasLayer>?> undo(List<CanvasLayer> currentLayers) {
+    final result = _enqueue<List<CanvasLayer>?>(() async {
+      await _ensureLoaded();
+      if (!canUndo) return null;
 
-    // Push current state to redo stack
-    _redoStack.add(currentLayers.map((layer) => layer.copyWith()).toList());
-
-    // If an asynchronous prefetch is ongoing, await it before checking stack
-    if (_prefetchFuture != null && _isPrefetching) {
-      await _prefetchFuture;
-    }
-
-    // If undo stack is empty in RAM but disk has frames, force synchronous recovery
-    if (_undoStack.isEmpty && _diskCount > 0) {
-      await _prefetchFromDisk();
-    }
-
-    if (_undoStack.isEmpty) return null;
-
-    final targetState = _undoStack.removeLast();
-
-    // Asynchronously pre-fetch earlier frames from disk if RAM stack is low
-    if (_undoStack.length < prefetchTrigger && _diskCount > 0 && !_isPrefetching) {
-      _prefetchFuture = _prefetchFromDisk();
-    }
-
-    return targetState.map((layer) => layer.copyWith()).toList();
-  }
-
-  /// Re-applies the next forward state from the redo stack.
-  Future<List<CanvasLayer>?> redo(List<CanvasLayer> currentLayers) async {
-    if (!canRedo) return null;
-
-    final nextState = _redoStack.removeLast();
-
-    // Deep copy current layers into undo stack
-    _undoStack.add(currentLayers.map((layer) => layer.copyWith()).toList());
-
-    // Check disk spillover if redoing pushes undo stack past inMemoryLimit
-    if (_undoStack.length > inMemoryLimit) {
-      final oldest = _undoStack.removeAt(0);
-      final box = await _getBox();
-      await box.put(_diskTopKey, oldest);
-      _diskTopKey++;
-      _diskCount++;
-
-      if (_diskCount + _undoStack.length > maxDepth) {
-        await box.delete(_diskBottomKey);
-        _diskBottomKey++;
-        _diskCount--;
-      }
-    }
-
-    return nextState.map((layer) => layer.copyWith()).toList();
-  }
-
-  /// Asynchronously reads up to [inMemoryLimit] frames from disk Hive box
-  /// and prepends them chronologically into the bottom of [_undoStack].
-  Future<void> _prefetchFromDisk() async {
-    if (_isPrefetching || _diskCount <= 0) return;
-    _isPrefetching = true;
-
-    try {
-      final box = await _getBox();
-      if (!box.isOpen) return;
-
-      final availableSlots = inMemoryLimit - _undoStack.length;
-      if (availableSlots <= 0) return;
-
-      final countToFetch = min(availableSlots, _diskCount);
-      final fetchedBatch = <List<CanvasLayer>>[];
-
-      for (var i = 0; i < countToFetch; i++) {
-        if (!box.isOpen) break;
-        final keyToRead = _diskTopKey - 1 - i;
-        final raw = box.get(keyToRead);
-        if (raw != null) {
-          final layers = raw.cast<CanvasLayer>();
-          fetchedBatch.insert(0, layers);
-        }
-        await box.delete(keyToRead);
+      if (_undoCache.isEmpty) {
+        await _prefetchBatch();
+        if (_undoCache.isEmpty) return null;
       }
 
-      _diskTopKey -= countToFetch;
-      _diskCount -= countToFetch;
+      final box = await _openBox();
+      final target = _undoCache.removeLast();
+      _undoTop--;
+      await box.delete(_undoTop);
 
-      // Prepend recovered batch to the bottom of the undo stack
-      _undoStack.insertAll(0, fetchedBatch);
-    } catch (_) {
-      // Gracefully handle if box is closed during shutdown
-    } finally {
-      _isPrefetching = false;
-    }
+      await box.put(redoKeyBase + _redoCount, _clone(currentLayers));
+      _redoCount++;
+      await _writeMeta();
+
+      return _clone(target);
+    });
+
+    // Refill the RAM window in the background once it runs low; queued after
+    // this undo so it cannot interleave with it.
+    unawaited(result.then((_) => _schedulePrefetchIfLow()));
+    return result;
   }
 
-  /// Forces an immediate synchronous flush and prefetch for deterministic testing.
-  Future<void> flushPrefetch() async {
-    if (_diskCount > 0) {
-      await _prefetchFromDisk();
-    }
+  /// Returns the next snapshot from the redo stack and stores [currentLayers]
+  /// as the newest undo snapshot. Returns `null` when there is nothing to redo.
+  Future<List<CanvasLayer>?> redo(List<CanvasLayer> currentLayers) {
+    return _enqueue(() async {
+      await _ensureLoaded();
+      if (!canRedo) return null;
+
+      final box = await _openBox();
+      final key = redoKeyBase + _redoCount - 1;
+      final raw = await box.get(key);
+      await box.delete(key);
+      _redoCount--;
+
+      await _pushUndo(_clone(currentLayers));
+      await _writeMeta();
+
+      return raw == null ? null : _clone(raw.cast<CanvasLayer>());
+    });
   }
 
-  /// Clears in-memory stacks and purges all persisted snapshots in the Hive box.
-  Future<void> clear() async {
-    if (_prefetchFuture != null) {
-      try {
-        await _prefetchFuture;
-      } catch (_) {}
-    }
-    _undoStack.clear();
-    _redoStack.clear();
-    _diskBottomKey = 0;
-    _diskTopKey = 0;
-    _diskCount = 0;
+  /// Waits for any queued work, including a pending background prefetch.
+  Future<void> flushPrefetch() => _enqueue(() async {});
 
-    final box = await _getBox();
-    if (box.isOpen) {
+  /// Purges every undo and redo snapshot from RAM and disk.
+  Future<void> clear() {
+    return _enqueue(() async {
+      final box = await _openBox();
       await box.clear();
+      _undoCache.clear();
+      _undoBottom = 0;
+      _undoTop = 0;
+      _redoCount = 0;
+      _isLoaded = true;
+    });
+  }
+
+  /// Finishes queued work and closes the backing box.
+  Future<void> dispose() async {
+    try {
+      await _queue;
+    } catch (_) {
+      // A failed operation was already reported to its caller.
+    }
+    final box = _box;
+    if (box != null && box.isOpen) {
+      await box.close();
     }
   }
 
-  /// Closes the underlying Hive box after finishing any pending prefetch.
-  Future<void> dispose() async {
-    if (_prefetchFuture != null) {
-      try {
-        await _prefetchFuture;
-      } catch (_) {}
+  Future<T> _enqueue<T>(Future<T> Function() operation) {
+    final result = _queue.then((_) => operation());
+    _queue = result.then<void>((_) {}, onError: (Object _) {});
+    return result;
+  }
+
+  Future<LazyBox<List<dynamic>>> _openBox() async {
+    final existing = _box;
+    if (existing != null && existing.isOpen) return existing;
+
+    final box = Hive.isBoxOpen(boxName)
+        ? Hive.lazyBox<List<dynamic>>(boxName)
+        : await Hive.openLazyBox<List<dynamic>>(boxName);
+    _box = box;
+    return box;
+  }
+
+  Future<void> _ensureLoaded() async {
+    if (_isLoaded) return;
+    final box = await _openBox();
+
+    final meta = await box.get(metaKey);
+    if (meta != null && meta.length == 3) {
+      _undoBottom = meta[0] as int;
+      _undoTop = meta[1] as int;
+      _redoCount = meta[2] as int;
     }
-    if (historyBox != null && historyBox!.isOpen) {
-      await historyBox!.close();
+    _isLoaded = true;
+
+    await _prefetchBatch();
+  }
+
+  Future<void> _pushUndo(List<CanvasLayer> snapshot) async {
+    final box = await _openBox();
+    await box.put(_undoTop, snapshot);
+    _undoTop++;
+    _undoCache.add(snapshot);
+
+    // The snapshot is already on disk, so trimming the cache loses nothing.
+    if (_undoCache.length > inMemoryLimit) {
+      _undoCache.removeAt(0);
+    }
+
+    while (totalUndoCount > maxDepth) {
+      await box.delete(_undoBottom);
+      _undoBottom++;
+    }
+    if (_undoCache.length > totalUndoCount) {
+      _undoCache.removeRange(0, _undoCache.length - totalUndoCount);
     }
   }
+
+  Future<void> _clearRedo() async {
+    if (_redoCount == 0) return;
+    final box = await _openBox();
+    await box.deleteAll(
+      List<int>.generate(_redoCount, (i) => redoKeyBase + i),
+    );
+    _redoCount = 0;
+  }
+
+  Future<void> _writeMeta() async {
+    final box = await _openBox();
+    await box.put(metaKey, <int>[_undoBottom, _undoTop, _redoCount]);
+  }
+
+  void _schedulePrefetchIfLow() {
+    if (_undoCache.length < prefetchTrigger && diskUndoCount > 0) {
+      unawaited(
+        _enqueue(() async {
+          _isPrefetching = true;
+          try {
+            await _prefetchBatch();
+          } finally {
+            _isPrefetching = false;
+          }
+        }),
+      );
+    }
+  }
+
+  /// Loads the next older snapshots from disk into the bottom of the RAM cache,
+  /// up to [inMemoryLimit] cached snapshots in total.
+  ///
+  /// Walks from newest to oldest; if a snapshot is missing on disk (e.g. an
+  /// interrupted write), history older than the gap is discarded so cached
+  /// snapshots always stay aligned with their keys.
+  Future<void> _prefetchBatch() async {
+    final count = min(inMemoryLimit - _undoCache.length, diskUndoCount);
+    if (count <= 0) return;
+
+    final box = await _openBox();
+    final firstCachedKey = _undoTop - _undoCache.length;
+    final batch = <List<CanvasLayer>>[];
+    for (var key = firstCachedKey - 1; key >= firstCachedKey - count; key--) {
+      final raw = await box.get(key);
+      if (raw == null) {
+        _undoBottom = key + 1;
+        await _writeMeta();
+        break;
+      }
+      batch.insert(0, raw.cast<CanvasLayer>());
+    }
+    _undoCache.insertAll(0, batch);
+  }
+
+  static List<CanvasLayer> _clone(List<CanvasLayer> layers) =>
+      layers.map((layer) => layer.copyWith()).toList();
 }

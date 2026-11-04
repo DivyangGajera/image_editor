@@ -12,7 +12,7 @@ void main() {
   group('CanvasNotifier', () {
     late Directory tempDir;
     late Box<ProjectModel> projectsBox;
-    late Box<List<dynamic>> historyBox;
+    late LazyBox<List<dynamic>> historyBox;
     late ProjectRepository projectRepository;
     late HistoryManager historyManager;
     late ProviderContainer container;
@@ -42,7 +42,7 @@ void main() {
       tempDir = await Directory.systemTemp.createTemp('canvas_notifier_test_');
       Hive.init(tempDir.path);
       projectsBox = await Hive.openBox<ProjectModel>(StorageKeys.projectsBox);
-      historyBox = await Hive.openBox<List<dynamic>>('history_${initialProject.id}');
+      historyBox = await Hive.openLazyBox<List<dynamic>>('history_${initialProject.id}');
 
       projectRepository = ProjectRepository(
         getBaseDir: () async => tempDir,
@@ -249,13 +249,18 @@ void main() {
       expect(state.project.layers.last.id, 'l-2');
     });
 
-    test('build fails with StateError when the project does not exist', () async {
+    test('build fails with StateError and creates no history for a missing project', () async {
       final missing = canvasProvider('missing-project');
       container.listen(missing, (_, _) {});
 
       await expectLater(
         container.read(missing.future),
         throwsA(isA<StateError>()),
+      );
+      expect(
+        Hive.isBoxOpen(HistoryManager.boxNameFor('missing-project')),
+        isFalse,
+        reason: 'no history box may be created for a project that does not exist',
       );
     });
   });
