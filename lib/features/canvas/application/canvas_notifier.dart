@@ -4,6 +4,7 @@ import 'package:image_editor/features/canvas/domain/models/models.dart';
 import 'package:image_editor/features/history/history.dart';
 import 'package:image_editor/features/layers/domain/models/models.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:uuid/uuid.dart';
 
 part 'canvas_notifier.g.dart';
 
@@ -82,6 +83,9 @@ class CanvasNotifier extends _$CanvasNotifier {
 
   set _current(CanvasState value) => state = AsyncData<CanvasState>(value);
 
+  /// Layers captured when the current gesture began; null when idle.
+  List<CanvasLayer>? _interactionSnapshot;
+
   @override
   Future<CanvasState> build(String projectId) async {
     final project = await ref.read(projectRepositoryProvider).loadProject(projectId);
@@ -103,10 +107,58 @@ class CanvasNotifier extends _$CanvasNotifier {
     _current = _current.copyWith(selectedLayerId: () => id);
   }
 
-  /// Sets whether an active touch/drag interaction is underway.
-  void setInteracting(bool isInteracting) {
-    if (_current.isInteracting == isInteracting) return;
-    _current = _current.copyWith(isInteracting: isInteracting);
+  /// Starts a continuous gesture (drag, pinch, rotate) on layer [id].
+  ///
+  /// Selects the layer and remembers the pre-gesture layers, so the whole
+  /// gesture becomes exactly one undo step when [commitInteraction] is called.
+  void beginInteraction(String id) {
+    _interactionSnapshot ??= _current.project.layers;
+    _current = _current.copyWith(
+      selectedLayerId: () => id,
+      isInteracting: true,
+    );
+  }
+
+  /// Applies a live transform to layer [id] while a gesture is in progress.
+  ///
+  /// Updates state only: no history entry and no disk write per frame.
+  void previewTransform(
+    String id, {
+    double? x,
+    double? y,
+    double? scale,
+    double? rotation,
+  }) {
+    final index = _current.project.layers.indexWhere((l) => l.id == id);
+    if (index == -1) return;
+
+    final updatedLayers = List<CanvasLayer>.from(_current.project.layers);
+    updatedLayers[index] = updatedLayers[index].copyWith(
+      x: x,
+      y: y,
+      scale: scale,
+      rotation: rotation,
+    );
+    _current = _current.copyWith(
+      project: _current.project.copyWith(layers: updatedLayers),
+    );
+  }
+
+  /// Ends the current gesture: records a single undo step with the
+  /// pre-gesture layers and persists the project once, if anything changed.
+  Future<void> commitInteraction() async {
+    final snapshot = _interactionSnapshot;
+    _interactionSnapshot = null;
+    _current = _current.copyWith(isInteracting: false);
+
+    if (snapshot == null || listEquals(snapshot, _current.project.layers)) {
+      return;
+    }
+
+    await _historyNotifier.pushState(snapshot);
+    final updatedProject = _current.project.copyWith(updatedAt: DateTime.now());
+    _current = _current.copyWith(project: updatedProject);
+    await _projectRepository.saveProject(updatedProject);
   }
 
   /// Appends [layer] to the canvas, assigning it the top stacking [zIndex],
@@ -116,7 +168,7 @@ class CanvasNotifier extends _$CanvasNotifier {
     await _historyNotifier.pushState(_current.project.layers);
 
     final updatedLayers = List<CanvasLayer>.from(_current.project.layers);
-    final indexedLayer = _applyZIndex(layer, updatedLayers.length);
+    final indexedLayer = layer.copyWith(zIndex: updatedLayers.length);
     updatedLayers.add(indexedLayer);
 
     final updatedProject = _current.project.copyWith(
@@ -139,18 +191,14 @@ class CanvasNotifier extends _$CanvasNotifier {
     double? y,
     double? scale,
     double? rotation,
-    bool recordHistory = true,
   }) async {
     final index = _current.project.layers.indexWhere((l) => l.id == id);
     if (index == -1) return;
 
-    if (recordHistory) {
-      await _historyNotifier.pushState(_current.project.layers);
-    }
+    await _historyNotifier.pushState(_current.project.layers);
 
     final updatedLayers = List<CanvasLayer>.from(_current.project.layers);
-    updatedLayers[index] = _applyTransform(
-      updatedLayers[index],
+    updatedLayers[index] = updatedLayers[index].copyWith(
       x: x,
       y: y,
       scale: scale,
@@ -251,6 +299,63 @@ class CanvasNotifier extends _$CanvasNotifier {
     await _projectRepository.saveProject(updatedProject);
   }
 
+  /// Normalized offset applied to a duplicate so it does not hide the original.
+  static const double duplicateOffset = 0.03;
+
+  /// Duplicates layer [id] directly above the original, slightly offset,
+  /// selects the copy, records history and persists. Returns the copy's ID.
+  Future<String?> duplicateLayer(String id) async {
+    final layers = _current.project.layers;
+    final index = layers.indexWhere((l) => l.id == id);
+    if (index == -1) return null;
+
+    await _historyNotifier.pushState(layers);
+
+    final original = layers[index];
+    final copy = original.copyWith(
+      id: const Uuid().v4(),
+      x: (original.x + duplicateOffset).clamp(-0.5, 1.5),
+      y: (original.y + duplicateOffset).clamp(-0.5, 1.5),
+    );
+    final updatedList = List<CanvasLayer>.from(layers)..insert(index + 1, copy);
+    final updatedProject = _current.project.copyWith(
+      layers: _reIndexLayers(updatedList),
+      updatedAt: DateTime.now(),
+    );
+
+    _current = _current.copyWith(
+      project: updatedProject,
+      selectedLayerId: () => copy.id,
+    );
+    await _projectRepository.saveProject(updatedProject);
+    return copy.id;
+  }
+
+  /// Shows or hides layer [id]. Hidden layers are neither rendered nor exported
+  /// and are deselected; they remain listed in the layers panel.
+  Future<void> toggleVisibility(String id) async {
+    final layers = _current.project.layers;
+    final index = layers.indexWhere((l) => l.id == id);
+    if (index == -1) return;
+
+    await _historyNotifier.pushState(layers);
+
+    final toggled = layers[index].copyWith(isVisible: !layers[index].isVisible);
+    final updatedList = List<CanvasLayer>.from(layers)..[index] = toggled;
+    final updatedProject = _current.project.copyWith(
+      layers: updatedList,
+      updatedAt: DateTime.now(),
+    );
+
+    _current = _current.copyWith(
+      project: updatedProject,
+      selectedLayerId: !toggled.isVisible && _current.selectedLayerId == id
+          ? () => null
+          : null,
+    );
+    await _projectRepository.saveProject(updatedProject);
+  }
+
   /// Reverts to the previous state recorded in the [HistoryNotifier].
   Future<void> undo() async {
     final previousLayers = await _historyNotifier.undo(_current.project.layers);
@@ -295,40 +400,8 @@ class CanvasNotifier extends _$CanvasNotifier {
   List<CanvasLayer> _reIndexLayers(List<CanvasLayer> layers) {
     final result = <CanvasLayer>[];
     for (var i = 0; i < layers.length; i++) {
-      result.add(_applyZIndex(layers[i], i));
+      result.add(layers[i].copyWith(zIndex: i));
     }
     return result;
-  }
-
-  /// Helper applying a specific zIndex to any concrete [CanvasLayer] type.
-  CanvasLayer _applyZIndex(CanvasLayer layer, int zIndex) {
-    if (layer is ImageLayer) return layer.copyWith(zIndex: zIndex);
-    if (layer is TextLayer) return layer.copyWith(zIndex: zIndex);
-    if (layer is DoodleLayer) return layer.copyWith(zIndex: zIndex);
-    if (layer is StickerLayer) return layer.copyWith(zIndex: zIndex);
-    return layer;
-  }
-
-  /// Helper applying transformation updates to any concrete [CanvasLayer] type.
-  CanvasLayer _applyTransform(
-    CanvasLayer layer, {
-    double? x,
-    double? y,
-    double? scale,
-    double? rotation,
-  }) {
-    if (layer is ImageLayer) {
-      return layer.copyWith(x: x, y: y, scale: scale, rotation: rotation);
-    }
-    if (layer is TextLayer) {
-      return layer.copyWith(x: x, y: y, scale: scale, rotation: rotation);
-    }
-    if (layer is DoodleLayer) {
-      return layer.copyWith(x: x, y: y, scale: scale, rotation: rotation);
-    }
-    if (layer is StickerLayer) {
-      return layer.copyWith(x: x, y: y, scale: scale, rotation: rotation);
-    }
-    return layer;
   }
 }

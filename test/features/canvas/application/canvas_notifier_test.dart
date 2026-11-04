@@ -94,17 +94,79 @@ void main() {
       expect(state.isInteracting, isFalse);
     });
 
-    test('selectLayer and setInteracting update ephemeral state without modifying history', () {
+    test('selectLayer updates ephemeral state without modifying history', () {
       final notifier = container.read(canvasUnderTest.notifier);
 
       notifier.selectLayer('l-test-1');
       expect(readState().selectedLayerId, 'l-test-1');
 
-      notifier.setInteracting(true);
-      expect(readState().isInteracting, isTrue);
-
       final history = container.read(historyProvider(initialProject.id));
       expect(history.canUndo, isFalse);
+    });
+
+    group('gesture interaction', () {
+      test('preview updates state live without history or persistence', () async {
+        final notifier = container.read(canvasUnderTest.notifier);
+        await notifier.addLayer(makeText('l-1', 'Drag me'));
+        final undoBefore = container.read(historyProvider(initialProject.id)).totalUndoCount;
+
+        notifier.beginInteraction('l-1');
+        expect(readState().isInteracting, isTrue);
+        expect(readState().selectedLayerId, 'l-1');
+
+        for (var i = 1; i <= 30; i++) {
+          notifier.previewTransform('l-1', x: 0.5 + i * 0.01, rotation: i * 0.01);
+        }
+
+        expect(readState().project.layers.single.x, closeTo(0.8, 1e-9));
+        expect(
+          container.read(historyProvider(initialProject.id)).totalUndoCount,
+          undoBefore,
+          reason: 'no history entry per frame',
+        );
+        final persisted = await projectRepository.loadProject(initialProject.id);
+        expect(persisted!.layers.single.x, 0.5, reason: 'no disk write per frame');
+      });
+
+      test('commit records exactly one undo step and persists once', () async {
+        final notifier = container.read(canvasUnderTest.notifier);
+        await notifier.addLayer(makeText('l-1', 'Drag me'));
+        final undoBefore = container.read(historyProvider(initialProject.id)).totalUndoCount;
+
+        notifier.beginInteraction('l-1');
+        notifier.previewTransform('l-1', x: 0.6, y: 0.4);
+        notifier.previewTransform('l-1', x: 0.7, y: 0.3, scale: 2.0);
+        await notifier.commitInteraction();
+
+        expect(readState().isInteracting, isFalse);
+        expect(
+          container.read(historyProvider(initialProject.id)).totalUndoCount,
+          undoBefore + 1,
+        );
+        final persisted = await projectRepository.loadProject(initialProject.id);
+        expect(persisted!.layers.single.x, 0.7);
+        expect(persisted.layers.single.scale, 2.0);
+
+        await notifier.undo();
+        final restored = readState().project.layers.single;
+        expect(restored.x, 0.5, reason: 'undo returns to the pre-gesture position');
+        expect(restored.y, 0.5);
+        expect(restored.scale, 1.0);
+      });
+
+      test('a gesture that changes nothing records no history', () async {
+        final notifier = container.read(canvasUnderTest.notifier);
+        await notifier.addLayer(makeText('l-1', 'Tap only'));
+        final undoBefore = container.read(historyProvider(initialProject.id)).totalUndoCount;
+
+        notifier.beginInteraction('l-1');
+        await notifier.commitInteraction();
+
+        expect(
+          container.read(historyProvider(initialProject.id)).totalUndoCount,
+          undoBefore,
+        );
+      });
     });
 
     test('addLayer appends layer, assigns sequential zIndex, auto-selects, and records history', () async {
@@ -213,6 +275,43 @@ void main() {
       expect(state.project.layers[0].zIndex, 0);
       expect(state.project.layers[1].id, 'l-2');
       expect(state.project.layers[1].zIndex, 1);
+    });
+
+    test('duplicateLayer inserts an offset copy directly above and selects it', () async {
+      final notifier = container.read(canvasUnderTest.notifier);
+      await notifier.addLayer(makeText('l-0', 'Bottom'));
+      await notifier.addLayer(makeText('l-1', 'Top'));
+      final undoBefore = container.read(historyProvider(initialProject.id)).totalUndoCount;
+
+      final copyId = await notifier.duplicateLayer('l-0');
+
+      final layers = readState().project.layers;
+      expect(layers.map((l) => l.id).toList(), <String?>['l-0', copyId, 'l-1']);
+      expect(layers.map((l) => l.zIndex).toList(), <int>[0, 1, 2]);
+      expect(layers[1], isA<TextLayer>());
+      expect((layers[1] as TextLayer).text, 'Bottom');
+      expect(layers[1].x, closeTo(0.5 + CanvasNotifier.duplicateOffset, 1e-12));
+      expect(readState().selectedLayerId, copyId);
+      expect(
+        container.read(historyProvider(initialProject.id)).totalUndoCount,
+        undoBefore + 1,
+      );
+    });
+
+    test('toggleVisibility hides and deselects, then shows the layer again', () async {
+      final notifier = container.read(canvasUnderTest.notifier);
+      await notifier.addLayer(makeText('l-0', 'Toggle'));
+      expect(readState().selectedLayerId, 'l-0');
+
+      await notifier.toggleVisibility('l-0');
+      expect(readState().project.layers.single.isVisible, isFalse);
+      expect(readState().selectedLayerId, isNull);
+
+      await notifier.toggleVisibility('l-0');
+      expect(readState().project.layers.single.isVisible, isTrue);
+
+      await notifier.undo();
+      expect(readState().project.layers.single.isVisible, isFalse);
     });
 
     test('undo and redo revert and re-apply canvas layer states', () async {

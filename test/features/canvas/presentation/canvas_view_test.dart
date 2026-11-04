@@ -205,7 +205,57 @@ void main() {
       expect(find.byIcon(Icons.close), findsNothing);
     });
 
-    testWidgets('dragging selected layer updates coordinates via gesture input', (tester) async {
+    testWidgets('dragging a layer tracks the finger exactly and is one undo step', (tester) async {
+      final container = ProviderContainer(
+        overrides: [
+          projectRepositoryProvider.overrideWithValue(projectRepository),
+          historyManagerProvider(project.id).overrideWithValue(historyManager),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      tester.view.physicalSize = const Size(800, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(createTestApp(container));
+      await tester.pumpAndSettle();
+
+      double layerX() =>
+          container.read(canvasProvider(project.id)).requireValue.project.layers.first.x;
+      double layerY() =>
+          container.read(canvasProvider(project.id)).requireValue.project.layers.first.y;
+
+      // Canvas 1000x1000 inside an 800x800 viewport -> 0.8 screen px per canvas unit.
+      final gesture = await tester.startGesture(tester.getCenter(find.text('Title Heading')));
+      // First move passes the touch slop and starts the gesture.
+      await gesture.moveBy(const Offset(30, 0));
+      await tester.pump();
+      final xAfterStart = layerX();
+      final yAfterStart = layerY();
+
+      await gesture.moveBy(const Offset(80, 40));
+      await tester.pump();
+
+      // 80 px on screen = 100 canvas units = 0.1 of the 1000-unit canvas.
+      expect(layerX() - xAfterStart, closeTo(0.1, 1e-6));
+      expect(layerY() - yAfterStart, closeTo(0.05, 1e-6));
+
+      await tester.runAsync(() async {
+        await gesture.up();
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      });
+      await tester.pumpAndSettle();
+
+      expect(container.read(historyProvider(project.id)).totalUndoCount, 1);
+
+      await tester.runAsync(() => container.read(canvasProvider(project.id).notifier).undo());
+      await tester.pumpAndSettle();
+      expect(layerX(), 0.5, reason: 'undo restores the pre-drag position');
+      expect(layerY(), 0.3);
+    });
+
+    testWidgets('hidden layers are not rendered', (tester) async {
       final container = ProviderContainer(
         overrides: [
           projectRepositoryProvider.overrideWithValue(projectRepository),
@@ -216,26 +266,15 @@ void main() {
 
       await tester.pumpWidget(createTestApp(container));
       await tester.pumpAndSettle();
+      expect(find.text('Subtitle Content'), findsOneWidget);
 
-      final initialX = container.read(canvasProvider(project.id)).requireValue.project.layers.first.x;
-      final initialY = container.read(canvasProvider(project.id)).requireValue.project.layers.first.y;
-
-      // Tap to select layer 1
-      await tester.tap(find.text('Title Heading'));
+      await tester.runAsync(
+        () => container.read(canvasProvider(project.id).notifier).toggleVisibility('layer-2'),
+      );
       await tester.pumpAndSettle();
 
-      // Drag layer by 150px right and 150px down within runAsync to handle Hive async persistence
-      await tester.runAsync(() async {
-        await tester.drag(find.text('Title Heading'), const Offset(150.0, 150.0));
-        await Future<void>.delayed(const Duration(milliseconds: 100));
-      });
-      await tester.pumpAndSettle();
-
-      final updatedLayer = container.read(canvasProvider(project.id)).requireValue.project.layers.first;
-      expect(updatedLayer.x, isNot(equals(initialX)));
-      expect(updatedLayer.y, isNot(equals(initialY)));
-      expect(updatedLayer.x, greaterThan(initialX));
-      expect(updatedLayer.y, greaterThan(initialY));
+      expect(find.text('Subtitle Content'), findsNothing);
+      expect(find.text('Title Heading'), findsOneWidget);
     });
 
     testWidgets('renders properly without RenderFlex overflow on compact viewports', (tester) async {

@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:image_editor/features/layers/application/doodle_geometry.dart';
 import 'package:image_editor/features/layers/domain/models/models.dart';
 import 'package:image_editor/features/layers/presentation/widgets/doodle_painter.dart';
 import 'package:uuid/uuid.dart';
@@ -90,11 +91,9 @@ class _DoodleCanvasOverlayState extends State<DoodleCanvasOverlay> {
   void _onPanEnd(DragEndDetails details) {
     if (!widget.isEnabled || _currentPoints.isEmpty) return;
 
-    final layer = DoodleLayer(
+    final layer = DoodleGeometry.fromCanvasPoints(
       id: const Uuid().v4(),
-      x: 0.5,
-      y: 0.5,
-      points: List<List<double>>.from(_currentPoints),
+      canvasPoints: List<List<double>>.from(_currentPoints),
       strokeColorValue: widget.strokeColor.toARGB32(),
       strokeWidth: widget.strokeWidth,
       hasGlow: widget.hasGlow,
@@ -136,6 +135,7 @@ class _DoodleCanvasOverlayState extends State<DoodleCanvasOverlay> {
               ? DoodlePainter(
                   layer: inProgressLayer,
                   canvasSize: widget.canvasSize,
+                  inLocalBox: false,
                 )
               : null,
         ),

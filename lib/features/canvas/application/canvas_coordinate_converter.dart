@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/rendering.dart';
 
 /// Utility calculating coordinate mappings between the screen viewport
@@ -80,5 +82,35 @@ abstract final class CanvasCoordinateConverter {
     );
 
     return canvasRect.contains(screenOffset);
+  }
+
+  /// Scale factor (screen logical pixels per canvas unit) at which a canvas of
+  /// [canvasSize] is shown when fitted with [BoxFit.contain] into [viewportSize].
+  static double fitScale({
+    required Size viewportSize,
+    required Size canvasSize,
+  }) {
+    if (viewportSize.isEmpty || canvasSize.isEmpty) return 1.0;
+    return math.min(
+      viewportSize.width / canvasSize.width,
+      viewportSize.height / canvasSize.height,
+    );
+  }
+
+  /// Converts a pointer movement measured in screen logical pixels into the
+  /// matching change of normalized canvas coordinates.
+  ///
+  /// [viewScale] is the on-screen scale of the canvas (see [fitScale]); without
+  /// it a layer would move slower or faster than the finger.
+  static Offset screenDeltaToNormalized({
+    required Offset screenDelta,
+    required Size canvasSize,
+    required double viewScale,
+  }) {
+    if (canvasSize.isEmpty || viewScale <= 0) return Offset.zero;
+    return Offset(
+      screenDelta.dx / viewScale / canvasSize.width,
+      screenDelta.dy / viewScale / canvasSize.height,
+    );
   }
 }

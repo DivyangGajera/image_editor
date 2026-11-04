@@ -76,11 +76,13 @@ void main() {
       expect(finishedLayer!.hasGlow, isTrue);
       expect(finishedLayer!.strokeColorValue, Colors.cyan.toARGB32());
 
-      // Normalized coordinates should be within [0.0, 1.0]
-      for (final pt in finishedLayer!.points) {
-        expect(pt[0], inInclusiveRange(0.0, 1.0));
-        expect(pt[1], inInclusiveRange(0.0, 1.0));
-      }
+      // Points are relative to the stroke's bounding box: the minimum is 0 on
+      // each axis and the layer center sits inside the canvas.
+      final points = finishedLayer!.points;
+      expect(points.map((p) => p[0]).reduce((a, b) => a < b ? a : b), 0.0);
+      expect(points.map((p) => p[1]).reduce((a, b) => a < b ? a : b), 0.0);
+      expect(finishedLayer!.x, inInclusiveRange(0.0, 1.0));
+      expect(finishedLayer!.y, inInclusiveRange(0.0, 1.0));
     });
   });
 }
