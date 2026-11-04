@@ -74,6 +74,17 @@ void main() {
 
   Future<List<ProjectModel>> savedProjects() => repository.getAllProjects();
 
+  /// Pumps, letting real I/O run, until [condition] holds (max 10 s), so slow
+  /// work like thumbnail rendering under a loaded test run cannot race.
+  Future<void> pumpUntil(WidgetTester tester, bool Function() condition) async {
+    for (var i = 0; i < 200 && !condition(); i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pump();
+    }
+    await tester.pumpAndSettle();
+    expect(condition(), isTrue, reason: 'condition not reached in time');
+  }
+
   testWidgets('fresh install shows the empty state and no floating button', (tester) async {
     await tester.runAsync(() => setUpStorage(const []));
     await pumpHome(tester);
@@ -91,6 +102,7 @@ void main() {
     await tapAndSettle(tester, find.byKey(const ValueKey('create_first_project')));
     expect(find.text('New project'), findsOneWidget);
     await tapAndSettle(tester, find.byKey(const ValueKey('format_portrait')));
+    await pumpUntil(tester, () => openedProjects.isNotEmpty);
 
     final saved = await tester.runAsync(savedProjects);
     expect(saved, hasLength(1));
@@ -103,7 +115,8 @@ void main() {
   testWidgets('lists projects newest first and opens one on tap', (tester) async {
     await tester.runAsync(
       () => setUpStorage([
-        project('old', 'Old flyer', minutesAgo: 120),
+        // Minutes, not hours: an hours-old edit reads "yesterday" right after midnight.
+        project('old', 'Old flyer', minutesAgo: 30),
         project('new', 'New banner', minutesAgo: 1),
       ]),
     );
@@ -114,7 +127,7 @@ void main() {
         .map((card) => card.project.id)
         .toList();
     expect(cards, ['new', 'old']);
-    expect(find.text('Edited 2 h ago'), findsOneWidget);
+    expect(find.text('Edited 30 min ago'), findsOneWidget);
 
     await tapAndSettle(tester, find.text('Old flyer'));
     expect(openedProjects, ['old']);
@@ -129,12 +142,14 @@ void main() {
     await tester.enterText(find.byKey(const ValueKey('rename_field')), 'Diwali Offer');
     await tester.pump();
     await tapAndSettle(tester, find.byKey(const ValueKey('rename_save')));
+    await pumpUntil(tester, () => find.text('Diwali Offer').evaluate().isNotEmpty);
     expect(find.text('Diwali Offer'), findsOneWidget);
 
     await tapAndSettle(tester, find.byKey(const ValueKey('project_menu_p1')));
     await tapAndSettle(tester, find.byKey(const ValueKey('project_action_delete')));
     expect(find.text('Delete project?'), findsOneWidget);
     await tapAndSettle(tester, find.byKey(const ValueKey('confirm_delete')));
+    await pumpUntil(tester, () => find.text('No projects yet').evaluate().isNotEmpty);
 
     expect(await tester.runAsync(savedProjects), isEmpty);
     expect(find.text('No projects yet'), findsOneWidget);
@@ -156,6 +171,7 @@ void main() {
     await tester.enterText(find.byKey(const ValueKey('custom_height')), '900');
     await tester.pump();
     await tapAndSettle(tester, create);
+    await pumpUntil(tester, () => openedProjects.isNotEmpty);
 
     final saved = await tester.runAsync(savedProjects);
     expect(saved!.single.canvasWidth, 1600);
