@@ -4,6 +4,7 @@
 
 import 'package:hive_ce/hive_ce.dart';
 import 'package:image_editor/features/canvas/domain/models/project_model.dart';
+import 'package:image_editor/features/fonts/domain/font_entry.dart';
 import 'package:image_editor/features/layers/domain/models/doodle_layer.dart';
 import 'package:image_editor/features/layers/domain/models/image_layer.dart';
 import 'package:image_editor/features/layers/domain/models/sticker_layer.dart';
@@ -12,6 +13,7 @@ import 'package:image_editor/features/layers/domain/models/text_layer.dart';
 extension HiveRegistrar on HiveInterface {
   void registerAdapters() {
     registerAdapter(DoodleLayerAdapter());
+    registerAdapter(FontEntryAdapter());
     registerAdapter(ImageLayerAdapter());
     registerAdapter(ProjectModelAdapter());
     registerAdapter(StickerLayerAdapter());
@@ -22,6 +24,7 @@ extension HiveRegistrar on HiveInterface {
 extension IsolatedHiveRegistrar on IsolatedHiveInterface {
   void registerAdapters() {
     registerAdapter(DoodleLayerAdapter());
+    registerAdapter(FontEntryAdapter());
     registerAdapter(ImageLayerAdapter());
     registerAdapter(ProjectModelAdapter());
     registerAdapter(StickerLayerAdapter());

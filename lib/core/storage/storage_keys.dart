@@ -17,6 +17,12 @@ abstract final class StorageKeys {
 
   /// File name of a project's gallery thumbnail inside its project folder.
   static const String thumbnailFileName = 'thumbnail.png';
+
+  /// Box storing the app-wide font library (FontEntry records).
+  static const String fontsBox = 'fonts_box';
+
+  /// App-wide directory (inside the documents directory) for font files.
+  static const String fontsDirectory = 'fonts';
 }
 
 /// Registry of every Hive `typeId` used by the app.
@@ -29,4 +35,5 @@ abstract final class HiveTypeIds {
   static const int doodleLayer = 2;
   static const int stickerLayer = 3;
   static const int projectModel = 4;
+  static const int fontEntry = 5;
 }
