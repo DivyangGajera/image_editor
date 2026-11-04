@@ -59,4 +59,4 @@ final class CanvasExportServiceProvider
 }
 
 String _$canvasExportServiceHash() =>
-    r'b1346f3e79d29419bb42dff5440d10c873f6f198';
+    r'e3d9a591826846e9e999e43e5a4fdbb0c17d6dd4';

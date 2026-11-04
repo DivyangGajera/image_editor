@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_editor/features/canvas/data/project_repository.dart';
 import 'package:image_editor/features/canvas/domain/models/models.dart';
@@ -14,6 +16,8 @@ class MockProjectRepository extends Mock implements ProjectRepository {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  // Export resolves fonts like the editor; tests must never hit the network.
+  GoogleFonts.config.allowRuntimeFetching = false;
 
   late MockProjectRepository mockRepo;
   late Directory tempDir;
@@ -43,8 +47,6 @@ void main() {
 
       const config = ExportConfig(
         format: ExportFormat.png,
-        width: 200.0,
-        height: 150.0,
       );
 
       final bytes = await service.renderCanvasToBytes(
@@ -76,8 +78,6 @@ void main() {
       const config = ExportConfig(
         format: ExportFormat.jpeg,
         jpegQuality: 80,
-        width: 100.0,
-        height: 100.0,
       );
 
       final bytes = await service.renderCanvasToBytes(
@@ -142,8 +142,6 @@ void main() {
 
       const config = ExportConfig(
         format: ExportFormat.png,
-        width: 120.0,
-        height: 120.0,
       );
 
       final bytes = await service.renderCanvasToBytes(
@@ -196,8 +194,6 @@ void main() {
       final service = CanvasExportService(projectRepository: mockRepo);
       const config = ExportConfig(
         format: ExportFormat.png,
-        width: 100.0,
-        height: 100.0,
       );
 
       final bytes = await service.renderCanvasToBytes(
@@ -209,6 +205,73 @@ void main() {
       final decoded = img.decodePng(bytes);
       expect(decoded, isNotNull);
       expect(decoded!.width, equals(100));
+    });
+
+    test('content scales with the output size instead of shrinking', () async {
+      // 20x20 green square centered at (25, 25) on a 100x100 canvas.
+      final square = img.Image(width: 20, height: 20)
+        ..clear(img.ColorRgba8(0, 255, 0, 255));
+      final squareFile = File('${tempDir.path}/square.png');
+      await squareFile.writeAsBytes(img.encodePng(square));
+      when(() => mockRepo.resolveRelativePath('projects/p/images/square.png'))
+          .thenAnswer((_) async => squareFile);
+
+      final project = ProjectModel(
+        id: 'proj_scale',
+        title: 'Scale',
+        canvasWidth: 100.0,
+        canvasHeight: 100.0,
+        layers: const [
+          ImageLayer(
+            id: 'sq',
+            x: 0.25,
+            y: 0.25,
+            relativeImagePath: 'projects/p/images/square.png',
+          ),
+        ],
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+      final service = CanvasExportService(projectRepository: mockRepo);
+
+      bool isGreen(img.Image image, int x, int y) {
+        final p = image.getPixel(x, y);
+        return p.g > 200 && p.r < 60 && p.b < 60;
+      }
+
+      final x1 = img.decodePng(
+        await service.renderAtSize(project: project, outputSize: const Size(100, 100)),
+      )!;
+      expect(isGreen(x1, 25, 25), isTrue);
+      expect(isGreen(x1, 33, 33), isTrue);
+      expect(isGreen(x1, 40, 40), isFalse);
+
+      // Twice the resolution: the square spans canvas units 15..35 -> 30..70 px.
+      final x2 = img.decodePng(
+        await service.renderAtSize(project: project, outputSize: const Size(200, 200)),
+      )!;
+      expect(x2.width, 200);
+      expect(isGreen(x2, 50, 50), isTrue);
+      expect(isGreen(x2, 66, 66), isTrue, reason: 'content must grow with the output');
+      expect(isGreen(x2, 75, 75), isFalse);
+    });
+
+    test('renderCanvasToBytes uses the resolution tier and keeps the aspect ratio', () async {
+      final service = CanvasExportService(projectRepository: mockRepo);
+      final project = ProjectModel(
+        id: 'proj_tier',
+        title: 'Tier',
+        canvasWidth: 40.0,
+        canvasHeight: 50.0,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      final standard = img.decodePng(
+        await service.renderCanvasToBytes(project: project, config: const ExportConfig()),
+      )!;
+      expect(standard.width, 40);
+      expect(standard.height, 50);
     });
 
     test('renders with watermarks across all positions', () async {
@@ -231,8 +294,6 @@ void main() {
 
       for (final pos in positions) {
         final config = ExportConfig(
-          width: 200.0,
-          height: 200.0,
           watermark: WatermarkConfig(
             isEnabled: true,
             text: 'STAMP $pos',

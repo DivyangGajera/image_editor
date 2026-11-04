@@ -11,6 +11,8 @@ import 'package:image_editor/features/canvas/data/project_repository.dart';
 import 'package:image_editor/features/canvas/domain/models/models.dart';
 import 'package:image_editor/features/export/domain/models/models.dart';
 import 'package:image_editor/features/layers/application/doodle_geometry.dart';
+import 'package:image_editor/features/layers/application/font_service.dart';
+import 'package:image_editor/features/layers/application/text_layer_style.dart';
 import 'package:image_editor/features/layers/domain/models/models.dart';
 import 'package:image_editor/features/layers/presentation/widgets/doodle_painter.dart';
 import 'package:path/path.dart' as p;
@@ -23,58 +25,84 @@ part 'canvas_export_service.g.dart';
 /// headlessly using [ui.PictureRecorder] and [ui.Canvas], decoupled from
 /// screen resolution limits.
 class CanvasExportService {
-  const CanvasExportService({
+  CanvasExportService({
     required this.projectRepository,
+    FontService? fontService,
     this.picturesDirectoryProvider,
-  });
+  }) : fontService = fontService ?? FontService();
 
   final ProjectRepository projectRepository;
+
+  /// Resolves text layer fonts exactly like the on-canvas text widget.
+  final FontService fontService;
 
   /// Optional directory provider override for testing.
   final Future<Directory> Function()? picturesDirectoryProvider;
 
-  /// Renders all layers in [project] at the resolution specified by [config],
-  /// applies watermarks if enabled, and returns raw encoded PNG or JPEG bytes.
+  /// Renders [project] at the size given by [config]'s resolution tier
+  /// (always the canvas aspect ratio), applies the watermark if enabled, and
+  /// returns encoded PNG or JPEG bytes.
   Future<Uint8List> renderCanvasToBytes({
     required ProjectModel project,
     required ExportConfig config,
+  }) {
+    return renderAtSize(
+      project: project,
+      outputSize: config.outputSize(Size(project.canvasWidth, project.canvasHeight)),
+      format: config.format,
+      jpegQuality: config.jpegQuality,
+      watermark: config.watermark,
+    );
+  }
+
+  /// Renders [project] into an image of exactly [outputSize] pixels.
+  ///
+  /// All layers are drawn in *canvas units* (the same coordinate space as the
+  /// editor) under a single scale transform, so text, strokes, images and the
+  /// watermark keep their proportions at every output resolution.
+  Future<Uint8List> renderAtSize({
+    required ProjectModel project,
+    required Size outputSize,
+    ExportFormat format = ExportFormat.png,
+    int jpegQuality = 95,
+    WatermarkConfig watermark = const WatermarkConfig(),
   }) async {
-    final double targetWidth = config.width;
-    final double targetHeight = config.height;
-    final targetSize = Size(targetWidth, targetHeight);
+    final canvasSize = Size(project.canvasWidth, project.canvasHeight);
+    final pixelWidth = outputSize.width.round();
+    final pixelHeight = outputSize.height.round();
 
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(
       recorder,
-      Rect.fromLTWH(0, 0, targetWidth, targetHeight),
+      Rect.fromLTWH(0, 0, pixelWidth.toDouble(), pixelHeight.toDouble()),
     );
 
-    // 1. Draw solid background
-    final bgPaint = Paint()..color = const Color(0xFFFFFFFF);
-    canvas.drawRect(Rect.fromLTWH(0, 0, targetWidth, targetHeight), bgPaint);
+    // Map canvas units onto output pixels.
+    canvas.scale(
+      pixelWidth / canvasSize.width,
+      pixelHeight / canvasSize.height,
+    );
 
-    // 2. Sort layers according to z-index
+    // 1. Solid canvas background.
+    canvas.drawRect(Offset.zero & canvasSize, Paint()..color = const Color(0xFFFFFFFF));
+
+    // 2. Layers in stacking order.
     final sortedLayers = List<CanvasLayer>.from(project.layers)
       ..sort((a, b) => a.zIndex.compareTo(b.zIndex));
 
-    // 3. Render each visible layer
     for (final layer in sortedLayers) {
       if (!layer.isVisible) continue;
 
       canvas.save();
-
-      // Transform coordinate space to layer center
-      final double pixelX = layer.x * targetWidth;
-      final double pixelY = layer.y * targetHeight;
-      canvas.translate(pixelX, pixelY);
+      canvas.translate(layer.x * canvasSize.width, layer.y * canvasSize.height);
       canvas.rotate(layer.rotation);
       canvas.scale(layer.scale);
 
       if (layer is DoodleLayer) {
         // Same local box as on screen, centered on the layer position.
-        final size = DoodleGeometry.localSize(layer, targetSize);
+        final size = DoodleGeometry.localSize(layer, canvasSize);
         canvas.translate(-size.width / 2.0, -size.height / 2.0);
-        DoodlePainter(layer: layer, canvasSize: targetSize).paint(canvas, size);
+        DoodlePainter(layer: layer, canvasSize: canvasSize).paint(canvas, size);
       } else if (layer is ImageLayer) {
         await _drawImageLayer(canvas, layer);
       } else if (layer is TextLayer) {
@@ -86,30 +114,26 @@ class CanvasExportService {
       canvas.restore();
     }
 
-    // 4. Render watermark layer if enabled
-    if (config.watermark.isEnabled) {
-      await _drawWatermark(canvas, config.watermark, targetWidth, targetHeight);
+    // 3. Watermark on top, also in canvas units.
+    if (watermark.isEnabled) {
+      await _drawWatermark(canvas, watermark, canvasSize);
     }
 
-    // 5. Finalize picture and convert to ui.Image
+    // 4. Rasterize at the output resolution.
     final picture = recorder.endRecording();
-    final uiImage = await picture.toImage(
-      targetWidth.round(),
-      targetHeight.round(),
-    );
-
+    final uiImage = await picture.toImage(pixelWidth, pixelHeight);
     final byteData = await uiImage.toByteData(format: ui.ImageByteFormat.png);
+    uiImage.dispose();
+    picture.dispose();
     if (byteData == null) {
       throw StateError('Failed to encode headless canvas image to bytes.');
     }
 
     final pngBytes = byteData.buffer.asUint8List();
 
-    // 6. Encode to JPEG in background isolate if requested
-    if (config.format == ExportFormat.jpeg) {
-      return Isolate.run(
-        () => _encodeJpegInIsolate(pngBytes, config.jpegQuality),
-      );
+    // 5. JPEG encoding is CPU heavy: run it in a background isolate.
+    if (format == ExportFormat.jpeg) {
+      return Isolate.run(() => _encodeJpegInIsolate(pngBytes, jpegQuality));
     }
 
     return pngBytes;
@@ -177,49 +201,33 @@ class CanvasExportService {
   }
 
   void _drawTextLayer(Canvas canvas, TextLayer layer) {
-    final textStyle = TextStyle(
-      color: Color(layer.textColorValue),
-      fontSize: layer.fontSize,
-      fontWeight: layer.isBold ? FontWeight.bold : FontWeight.normal,
-      fontStyle: layer.isItalic ? FontStyle.italic : FontStyle.normal,
+    final style = fontService.getTextStyle(
       fontFamily: layer.fontFamily,
-      shadows: layer.shadowColorValue != null
-          ? [
-              Shadow(
-                color: Color(layer.shadowColorValue!),
-                blurRadius: 4.0,
-                offset: const Offset(2.0, 2.0),
-              ),
-            ]
-          : null,
+      baseStyle: TextLayerStyle.base(layer),
     );
 
-    final span = TextSpan(text: layer.text, style: textStyle);
     final painter = TextPainter(
-      text: span,
+      text: TextSpan(text: layer.text, style: style),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.center,
-    );
-    painter.layout();
+    )..layout();
 
-    // Draw background bounding box if configured
-    if (layer.boxColorValue != null) {
-      const paddingH = 12.0;
-      const paddingV = 6.0;
+    final boxColor = layer.boxColorValue;
+    if (boxColor != null) {
+      const padding = TextLayerStyle.boxPadding;
       final boxRect = Rect.fromCenter(
         center: Offset.zero,
-        width: painter.width + (paddingH * 2.0),
-        height: painter.height + (paddingV * 2.0),
+        width: painter.width + padding.horizontal,
+        height: painter.height + padding.vertical,
       );
-      final rrect = RRect.fromRectAndRadius(
-        boxRect,
-        Radius.circular(layer.boxBorderRadius),
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(boxRect, Radius.circular(layer.boxBorderRadius)),
+        Paint()..color = Color(boxColor),
       );
-      canvas.drawRRect(rrect, Paint()..color = Color(layer.boxColorValue!));
     }
 
-    // Paint text centered
     painter.paint(canvas, Offset(-painter.width / 2.0, -painter.height / 2.0));
+    painter.dispose();
   }
 
   Future<void> _drawStickerLayer(Canvas canvas, StickerLayer layer) async {
@@ -237,120 +245,123 @@ class CanvasExportService {
     }
   }
 
+  /// Margin between a corner watermark and the canvas edge, as a fraction of
+  /// the canvas's shorter side.
+  static const double watermarkMarginFraction = 0.03;
+
+  /// Width of a logo watermark as a fraction of the canvas width.
+  static const double logoWidthFraction = 0.2;
+
   Future<void> _drawWatermark(
     Canvas canvas,
     WatermarkConfig watermark,
-    double canvasWidth,
-    double canvasHeight,
+    Size canvasSize,
   ) async {
+    final margin = canvasSize.shortestSide * watermarkMarginFraction;
+
     if (watermark.type == WatermarkType.text) {
-      final style = TextStyle(
-        color: Color(watermark.colorValue).withValues(alpha: watermark.opacity),
-        fontSize: watermark.fontSize,
-        fontWeight: FontWeight.bold,
-      );
-
-      final span = TextSpan(text: watermark.text, style: style);
       final painter = TextPainter(
-        text: span,
+        text: TextSpan(
+          text: watermark.text,
+          style: TextStyle(
+            inherit: false,
+            color: Color(watermark.colorValue).withValues(alpha: watermark.opacity),
+            fontSize: watermark.fontSize,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         textDirection: TextDirection.ltr,
+      )..layout();
+
+      _placeWatermark(
+        canvas,
+        canvasSize: canvasSize,
+        itemSize: painter.size,
+        margin: margin,
+        position: watermark.position,
+        draw: (offset) => painter.paint(canvas, offset),
       );
-      painter.layout();
+      painter.dispose();
+      return;
+    }
 
-      const double margin = 32.0;
+    final logoPath = watermark.logoAssetOrFilePath;
+    if (logoPath == null) return;
 
-      switch (watermark.position) {
-        case WatermarkPosition.bottomRight:
-          final offset = Offset(
-            canvasWidth - painter.width - margin,
-            canvasHeight - painter.height - margin,
-          );
-          painter.paint(canvas, offset);
-          break;
-        case WatermarkPosition.bottomLeft:
-          final offset = Offset(
-            margin,
-            canvasHeight - painter.height - margin,
-          );
-          painter.paint(canvas, offset);
-          break;
-        case WatermarkPosition.center:
-          final offset = Offset(
-            (canvasWidth - painter.width) / 2.0,
-            (canvasHeight - painter.height) / 2.0,
-          );
-          painter.paint(canvas, offset);
-          break;
-        case WatermarkPosition.tiled:
-          final stepX = (painter.width * 1.8).clamp(100.0, 500.0);
-          final stepY = (painter.height * 4.0).clamp(60.0, 300.0);
+    try {
+      final file = File(logoPath);
+      final Uint8List logoBytes;
+      if (await file.exists()) {
+        logoBytes = await file.readAsBytes();
+      } else {
+        logoBytes = (await rootBundle.load(logoPath)).buffer.asUint8List();
+      }
 
-          for (double y = 0; y < canvasHeight + 100; y += stepY) {
-            for (double x = 0; x < canvasWidth + 100; x += stepX) {
-              canvas.save();
-              canvas.translate(x, y);
-              canvas.rotate(-0.35); // ~ -20 degrees
-              painter.paint(canvas, Offset.zero);
-              canvas.restore();
-            }
+      final logo = await _decodeImageBytes(logoBytes);
+      if (logo == null) return;
+
+      final width = canvasSize.width * logoWidthFraction;
+      final height = width * logo.height / logo.width;
+      final source = Rect.fromLTWH(0, 0, logo.width.toDouble(), logo.height.toDouble());
+      final paint = Paint()
+        ..color = Colors.white.withValues(alpha: watermark.opacity)
+        ..filterQuality = FilterQuality.high;
+
+      _placeWatermark(
+        canvas,
+        canvasSize: canvasSize,
+        itemSize: Size(width, height),
+        margin: margin,
+        position: watermark.position,
+        draw: (offset) => canvas.drawImageRect(
+          logo,
+          source,
+          offset & Size(width, height),
+          paint,
+        ),
+      );
+      logo.dispose();
+    } catch (_) {
+      // A missing or unreadable logo must not fail the whole export.
+    }
+  }
+
+  /// Draws a watermark item of [itemSize] at [position], or repeats it in a
+  /// rotated diagonal pattern for [WatermarkPosition.tiled].
+  void _placeWatermark(
+    Canvas canvas, {
+    required Size canvasSize,
+    required Size itemSize,
+    required double margin,
+    required WatermarkPosition position,
+    required void Function(Offset topLeft) draw,
+  }) {
+    switch (position) {
+      case WatermarkPosition.bottomRight:
+        draw(Offset(
+          canvasSize.width - itemSize.width - margin,
+          canvasSize.height - itemSize.height - margin,
+        ));
+      case WatermarkPosition.bottomLeft:
+        draw(Offset(margin, canvasSize.height - itemSize.height - margin));
+      case WatermarkPosition.center:
+        draw(Offset(
+          (canvasSize.width - itemSize.width) / 2.0,
+          (canvasSize.height - itemSize.height) / 2.0,
+        ));
+      case WatermarkPosition.tiled:
+        final stepX = itemSize.width * 1.8;
+        final stepY = itemSize.height * 4.0;
+        if (stepX <= 0 || stepY <= 0) return;
+        for (var y = -itemSize.height; y < canvasSize.height + stepY; y += stepY) {
+          for (var x = -itemSize.width; x < canvasSize.width + stepX; x += stepX) {
+            canvas.save();
+            canvas.translate(x, y);
+            canvas.rotate(-0.35); // about -20 degrees
+            draw(Offset.zero);
+            canvas.restore();
           }
-          break;
-      }
-    } else if (watermark.type == WatermarkType.logo &&
-        watermark.logoAssetOrFilePath != null) {
-      try {
-        final file = File(watermark.logoAssetOrFilePath!);
-        final Uint8List logoBytes;
-        if (await file.exists()) {
-          logoBytes = await file.readAsBytes();
-        } else {
-          final data = await rootBundle.load(watermark.logoAssetOrFilePath!);
-          logoBytes = data.buffer.asUint8List();
         }
-
-        final logo = await _decodeImageBytes(logoBytes);
-        if (logo == null) return;
-
-        final paint = Paint()
-          ..color = Colors.white.withValues(alpha: watermark.opacity);
-        final w = logo.width.toDouble();
-        final h = logo.height.toDouble();
-
-        const double margin = 32.0;
-
-        switch (watermark.position) {
-          case WatermarkPosition.bottomRight:
-            canvas.drawImage(
-              logo,
-              Offset(canvasWidth - w - margin, canvasHeight - h - margin),
-              paint,
-            );
-            break;
-          case WatermarkPosition.bottomLeft:
-            canvas.drawImage(
-              logo,
-              Offset(margin, canvasHeight - h - margin),
-              paint,
-            );
-            break;
-          case WatermarkPosition.center:
-            canvas.drawImage(
-              logo,
-              Offset((canvasWidth - w) / 2.0, (canvasHeight - h) / 2.0),
-              paint,
-            );
-            break;
-          case WatermarkPosition.tiled:
-            for (double y = 0; y < canvasHeight; y += h * 2.0) {
-              for (double x = 0; x < canvasWidth; x += w * 2.0) {
-                canvas.drawImage(logo, Offset(x, y), paint);
-              }
-            }
-            break;
-        }
-      } catch (_) {
-        // Fallback gracefully
-      }
     }
   }
 
@@ -378,5 +389,6 @@ class CanvasExportService {
 CanvasExportService canvasExportService(Ref ref) {
   return CanvasExportService(
     projectRepository: ref.watch(projectRepositoryProvider),
+    fontService: ref.watch(fontServiceProvider),
   );
 }
