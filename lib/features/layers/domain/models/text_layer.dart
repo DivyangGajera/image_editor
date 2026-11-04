@@ -1,10 +1,11 @@
 import 'package:hive_ce/hive.dart';
+import 'package:image_editor/core/storage/storage_keys.dart';
 import 'canvas_layer.dart';
 
 part 'text_layer.g.dart';
 
 /// Represents a styled typography layer positioned on the canvas.
-@HiveType(typeId: 1)
+@HiveType(typeId: HiveTypeIds.textLayer)
 class TextLayer extends CanvasLayer {
   const TextLayer({
     required super.id,

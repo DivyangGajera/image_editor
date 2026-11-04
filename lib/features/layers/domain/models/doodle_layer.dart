@@ -1,11 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:hive_ce/hive.dart';
+import 'package:image_editor/core/storage/storage_keys.dart';
 import 'canvas_layer.dart';
 
 part 'doodle_layer.g.dart';
 
 /// Represents a freehand drawing/stroke vector layer positioned on the canvas.
-@HiveType(typeId: 2)
+@HiveType(typeId: HiveTypeIds.doodleLayer)
 class DoodleLayer extends CanvasLayer {
   const DoodleLayer({
     required super.id,

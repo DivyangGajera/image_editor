@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:hive_ce/hive.dart';
+import 'package:image_editor/core/storage/storage_keys.dart';
 import 'canvas_layer.dart';
 
 part 'image_layer.g.dart';
@@ -9,7 +10,7 @@ part 'image_layer.g.dart';
 /// Persistent file references are strictly stored as project-relative paths
 /// (e.g. `projects/<id>/images/image_1.png`) per Android Play Store Scoped Storage
 /// and local storage guidelines.
-@HiveType(typeId: 0)
+@HiveType(typeId: HiveTypeIds.imageLayer)
 class ImageLayer extends CanvasLayer {
   const ImageLayer({
     required super.id,

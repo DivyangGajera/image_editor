@@ -15,3 +15,15 @@ abstract final class StorageKeys {
   /// Subdirectory inside project folder for project-specific assets
   static const String assetsDirectory = 'assets';
 }
+
+/// Registry of every Hive `typeId` used by the app.
+///
+/// Type IDs are persisted inside box files, so an ID must NEVER be reused or
+/// changed once released. Always take the next unused number for new types.
+abstract final class HiveTypeIds {
+  static const int imageLayer = 0;
+  static const int textLayer = 1;
+  static const int doodleLayer = 2;
+  static const int stickerLayer = 3;
+  static const int projectModel = 4;
+}
