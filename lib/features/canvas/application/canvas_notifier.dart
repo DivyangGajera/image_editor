@@ -161,9 +161,10 @@ class CanvasNotifier extends _$CanvasNotifier {
     await _projectRepository.saveProject(updatedProject);
   }
 
-  /// Appends [layer] to the canvas, assigning it the top stacking [zIndex],
-  /// recording history, and auto-selecting the newly added layer.
-  Future<void> addLayer(CanvasLayer layer) async {
+  /// Appends [layer] on top of the canvas, assigning it the top stacking
+  /// zIndex, recording history and persisting. The new layer is selected
+  /// unless [select] is false (e.g. strokes added while drawing).
+  Future<void> addLayer(CanvasLayer layer, {bool select = true}) async {
     // Record current state before mutating
     await _historyNotifier.pushState(_current.project.layers);
 
@@ -178,7 +179,7 @@ class CanvasNotifier extends _$CanvasNotifier {
 
     _current = _current.copyWith(
       project: updatedProject,
-      selectedLayerId: () => indexedLayer.id,
+      selectedLayerId: select ? () => indexedLayer.id : null,
     );
 
     await _projectRepository.saveProject(updatedProject);

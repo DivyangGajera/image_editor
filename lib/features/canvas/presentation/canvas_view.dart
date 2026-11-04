@@ -14,9 +14,14 @@ class CanvasView extends ConsumerWidget {
   const CanvasView({
     super.key,
     required this.projectId,
+    this.overlayBuilder,
   });
 
   final String projectId;
+
+  /// Optional widget stacked above all layers, laid out in canvas units
+  /// (e.g. the freehand drawing surface). Receives the canvas size.
+  final Widget Function(Size canvasSize)? overlayBuilder;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -89,6 +94,9 @@ class CanvasView extends ConsumerWidget {
                           canvasSize: canvasSize,
                           viewScale: viewScale,
                         ),
+
+                      if (overlayBuilder != null)
+                        Positioned.fill(child: overlayBuilder!(canvasSize)),
                     ],
                   ),
                 ),
