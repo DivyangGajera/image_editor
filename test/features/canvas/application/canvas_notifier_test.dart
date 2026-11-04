@@ -314,6 +314,52 @@ void main() {
       expect(readState().project.layers.single.isVisible, isFalse);
     });
 
+    test('applyCutout hides the source and stacks the cutout on top with its transform',
+        () async {
+      final notifier = container.read(canvasUnderTest.notifier);
+      const source = ImageLayer(
+        id: 'photo',
+        x: 0.3,
+        y: 0.6,
+        scale: 0.4,
+        rotation: 0.2,
+        isFlippedHorizontally: true,
+        relativeImagePath: 'projects/p/images/photo.jpg',
+      );
+      await notifier.addLayer(source);
+      await notifier.addLayer(makeText('caption', 'On top'));
+      final undoBefore = container.read(historyProvider(initialProject.id)).totalUndoCount;
+
+      await notifier.applyCutout(
+        'photo',
+        const ImageLayer(
+          id: 'cutout',
+          x: 0.5,
+          y: 0.5,
+          relativeImagePath: 'projects/p/images/cutout.png',
+        ),
+      );
+
+      final layers = readState().project.layers;
+      expect(layers.map((l) => l.id).toList(), <String>['photo', 'cutout', 'caption']);
+      expect(layers[0].isVisible, isFalse);
+      final cutout = layers[1] as ImageLayer;
+      expect(cutout.x, 0.3);
+      expect(cutout.y, 0.6);
+      expect(cutout.scale, 0.4);
+      expect(cutout.rotation, 0.2);
+      expect(cutout.isFlippedHorizontally, isTrue);
+      expect(readState().selectedLayerId, 'cutout');
+      expect(
+        container.read(historyProvider(initialProject.id)).totalUndoCount,
+        undoBefore + 1,
+      );
+
+      await notifier.undo();
+      expect(readState().project.layers.map((l) => l.id), <String>['photo', 'caption']);
+      expect(readState().project.layers.first.isVisible, isTrue);
+    });
+
     test('undo and redo revert and re-apply canvas layer states', () async {
       final notifier = container.read(canvasUnderTest.notifier);
       final l1 = makeText('l-1', 'First');

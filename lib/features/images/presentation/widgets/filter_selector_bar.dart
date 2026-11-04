@@ -32,24 +32,8 @@ class FilterSelectorBar extends StatelessWidget {
 
           return ChoiceChip(
             key: ValueKey('filter_chip_${filter.id}'),
-            label: Text(
-              filter.name,
-              style: TextStyle(
-                color: isSelected ? Colors.white : Colors.white70,
-                fontSize: 12.0,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-              ),
-            ),
+            label: Text(filter.name),
             selected: isSelected,
-            selectedColor: const Color(0xFF4E95FF),
-            backgroundColor: const Color(0xFF1E1E2C),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20.0),
-              side: BorderSide(
-                color: isSelected ? const Color(0xFF4E95FF) : const Color(0xFF2E2E40),
-                width: 1.0,
-              ),
-            ),
             showCheckmark: false,
             onSelected: (_) {
               onFilterSelected(filter.id == 'none' ? null : filter.id);

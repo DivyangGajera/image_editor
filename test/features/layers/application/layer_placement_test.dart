@@ -48,4 +48,10 @@ void main() {
       );
     });
   });
+  group('LayerPlacement.textScale', () {
+    test('is 3x on a 1080-wide canvas', () {
+      expect(LayerPlacement.textScale(1080), 3.0);
+      expect(LayerPlacement.textScale(0), 1.0);
+    });
+  });
 }

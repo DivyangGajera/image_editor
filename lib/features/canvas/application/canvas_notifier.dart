@@ -161,9 +161,10 @@ class CanvasNotifier extends _$CanvasNotifier {
     await _projectRepository.saveProject(updatedProject);
   }
 
-  /// Appends [layer] to the canvas, assigning it the top stacking [zIndex],
-  /// recording history, and auto-selecting the newly added layer.
-  Future<void> addLayer(CanvasLayer layer) async {
+  /// Appends [layer] on top of the canvas, assigning it the top stacking
+  /// zIndex, recording history and persisting. The new layer is selected
+  /// unless [select] is false (e.g. strokes added while drawing).
+  Future<void> addLayer(CanvasLayer layer, {bool select = true}) async {
     // Record current state before mutating
     await _historyNotifier.pushState(_current.project.layers);
 
@@ -178,7 +179,7 @@ class CanvasNotifier extends _$CanvasNotifier {
 
     _current = _current.copyWith(
       project: updatedProject,
-      selectedLayerId: () => indexedLayer.id,
+      selectedLayerId: select ? () => indexedLayer.id : null,
     );
 
     await _projectRepository.saveProject(updatedProject);
@@ -352,6 +353,42 @@ class CanvasNotifier extends _$CanvasNotifier {
       selectedLayerId: !toggled.isVisible && _current.selectedLayerId == id
           ? () => null
           : null,
+    );
+    await _projectRepository.saveProject(updatedProject);
+  }
+
+  /// Places [cutout] directly above the image layer [sourceId] with the same
+  /// position, scale and rotation, hides the source and selects the cutout.
+  ///
+  /// One undo step restores the original image. Does nothing if the source
+  /// no longer exists.
+  Future<void> applyCutout(String sourceId, ImageLayer cutout) async {
+    final layers = _current.project.layers;
+    final index = layers.indexWhere((l) => l.id == sourceId);
+    if (index == -1) return;
+
+    await _historyNotifier.pushState(layers);
+
+    final source = layers[index];
+    final placed = cutout.copyWith(
+      x: source.x,
+      y: source.y,
+      scale: source.scale,
+      rotation: source.rotation,
+      isFlippedHorizontally:
+          source is ImageLayer ? source.isFlippedHorizontally : null,
+    );
+    final updatedList = List<CanvasLayer>.from(layers)
+      ..[index] = source.copyWith(isVisible: false)
+      ..insert(index + 1, placed);
+    final updatedProject = _current.project.copyWith(
+      layers: _reIndexLayers(updatedList),
+      updatedAt: DateTime.now(),
+    );
+
+    _current = _current.copyWith(
+      project: updatedProject,
+      selectedLayerId: () => placed.id,
     );
     await _projectRepository.saveProject(updatedProject);
   }

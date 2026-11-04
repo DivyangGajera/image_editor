@@ -38,4 +38,14 @@ abstract final class LayerPlacement {
     if (contentWidth <= 0 || canvasWidth <= 0) return 1.0;
     return canvasWidth * fraction / contentWidth;
   }
+
+  /// Canvas width on which text font sizes are designed (a typical phone width).
+  static const double textReferenceWidth = 360.0;
+
+  /// Scale for new text so its font size reads the same on any canvas as it
+  /// would on a [textReferenceWidth]-wide phone screen (3x on a 1080 canvas).
+  static double textScale(double canvasWidth) {
+    if (canvasWidth <= 0) return 1.0;
+    return canvasWidth / textReferenceWidth;
+  }
 }
