@@ -116,7 +116,7 @@ class CanvasNotifier extends _$CanvasNotifier {
     await _historyNotifier.pushState(_current.project.layers);
 
     final updatedLayers = List<CanvasLayer>.from(_current.project.layers);
-    final indexedLayer = _applyZIndex(layer, updatedLayers.length);
+    final indexedLayer = layer.copyWith(zIndex: updatedLayers.length);
     updatedLayers.add(indexedLayer);
 
     final updatedProject = _current.project.copyWith(
@@ -149,8 +149,7 @@ class CanvasNotifier extends _$CanvasNotifier {
     }
 
     final updatedLayers = List<CanvasLayer>.from(_current.project.layers);
-    updatedLayers[index] = _applyTransform(
-      updatedLayers[index],
+    updatedLayers[index] = updatedLayers[index].copyWith(
       x: x,
       y: y,
       scale: scale,
@@ -295,40 +294,8 @@ class CanvasNotifier extends _$CanvasNotifier {
   List<CanvasLayer> _reIndexLayers(List<CanvasLayer> layers) {
     final result = <CanvasLayer>[];
     for (var i = 0; i < layers.length; i++) {
-      result.add(_applyZIndex(layers[i], i));
+      result.add(layers[i].copyWith(zIndex: i));
     }
     return result;
-  }
-
-  /// Helper applying a specific zIndex to any concrete [CanvasLayer] type.
-  CanvasLayer _applyZIndex(CanvasLayer layer, int zIndex) {
-    if (layer is ImageLayer) return layer.copyWith(zIndex: zIndex);
-    if (layer is TextLayer) return layer.copyWith(zIndex: zIndex);
-    if (layer is DoodleLayer) return layer.copyWith(zIndex: zIndex);
-    if (layer is StickerLayer) return layer.copyWith(zIndex: zIndex);
-    return layer;
-  }
-
-  /// Helper applying transformation updates to any concrete [CanvasLayer] type.
-  CanvasLayer _applyTransform(
-    CanvasLayer layer, {
-    double? x,
-    double? y,
-    double? scale,
-    double? rotation,
-  }) {
-    if (layer is ImageLayer) {
-      return layer.copyWith(x: x, y: y, scale: scale, rotation: rotation);
-    }
-    if (layer is TextLayer) {
-      return layer.copyWith(x: x, y: y, scale: scale, rotation: rotation);
-    }
-    if (layer is DoodleLayer) {
-      return layer.copyWith(x: x, y: y, scale: scale, rotation: rotation);
-    }
-    if (layer is StickerLayer) {
-      return layer.copyWith(x: x, y: y, scale: scale, rotation: rotation);
-    }
-    return layer;
   }
 }

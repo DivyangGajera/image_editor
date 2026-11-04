@@ -45,6 +45,17 @@ abstract class CanvasLayer {
   @HiveField(6)
   final bool isVisible;
 
-  /// Returns an immutable copy of this layer with updated fields.
-  CanvasLayer copyWith();
+  /// Returns an immutable copy of this layer with the given base fields replaced.
+  ///
+  /// Every subclass overrides this with its own type-specific fields added, so
+  /// callers can update transform/stacking fields without knowing the concrete type.
+  CanvasLayer copyWith({
+    String? id,
+    double? x,
+    double? y,
+    double? scale,
+    double? rotation,
+    int? zIndex,
+    bool? isVisible,
+  });
 }
