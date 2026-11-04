@@ -23,6 +23,12 @@ abstract final class StorageKeys {
 
   /// App-wide directory (inside the documents directory) for font files.
   static const String fontsDirectory = 'fonts';
+
+  /// Box storing the user's own sticker library (UserSticker records).
+  static const String userStickersBox = 'user_stickers_box';
+
+  /// App-wide directory (inside the documents directory) for user stickers.
+  static const String userStickersDirectory = 'stickers';
 }
 
 /// Registry of every Hive `typeId` used by the app.
@@ -36,4 +42,5 @@ abstract final class HiveTypeIds {
   static const int stickerLayer = 3;
   static const int projectModel = 4;
   static const int fontEntry = 5;
+  static const int userSticker = 6;
 }
