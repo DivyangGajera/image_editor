@@ -236,8 +236,13 @@ class CanvasExportService {
 
   Future<void> _drawStickerLayer(Canvas canvas, StickerLayer layer) async {
     try {
-      final byteData = await rootBundle.load(layer.assetPath);
-      final bytes = byteData.buffer.asUint8List();
+      final filePath = layer.relativeFilePath;
+      final Uint8List bytes;
+      if (filePath != null) {
+        bytes = await (await projectRepository.resolveRelativePath(filePath)).readAsBytes();
+      } else {
+        bytes = (await rootBundle.load(layer.assetPath)).buffer.asUint8List();
+      }
       final image = await _decodeImageBytes(bytes);
       if (image == null) return;
 

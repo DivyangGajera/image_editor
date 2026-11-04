@@ -25,13 +25,14 @@ class StickerLayerAdapter extends TypeAdapter<StickerLayer> {
       zIndex: fields[5] == null ? 0 : (fields[5] as num).toInt(),
       isVisible: fields[6] == null ? true : fields[6] as bool,
       assetPath: fields[7] as String,
+      relativeFilePath: fields[8] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, StickerLayer obj) {
     writer
-      ..writeByte(8)
+      ..writeByte(9)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -47,7 +48,9 @@ class StickerLayerAdapter extends TypeAdapter<StickerLayer> {
       ..writeByte(6)
       ..write(obj.isVisible)
       ..writeByte(7)
-      ..write(obj.assetPath);
+      ..write(obj.assetPath)
+      ..writeByte(8)
+      ..write(obj.relativeFilePath);
   }
 
   @override
