@@ -255,6 +255,28 @@ void main() {
       expect(layerY(), 0.3);
     });
 
+    testWidgets('hidden layers are not rendered', (tester) async {
+      final container = ProviderContainer(
+        overrides: [
+          projectRepositoryProvider.overrideWithValue(projectRepository),
+          historyManagerProvider(project.id).overrideWithValue(historyManager),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(createTestApp(container));
+      await tester.pumpAndSettle();
+      expect(find.text('Subtitle Content'), findsOneWidget);
+
+      await tester.runAsync(
+        () => container.read(canvasProvider(project.id).notifier).toggleVisibility('layer-2'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Subtitle Content'), findsNothing);
+      expect(find.text('Title Heading'), findsOneWidget);
+    });
+
     testWidgets('renders properly without RenderFlex overflow on compact viewports', (tester) async {
       final container = ProviderContainer(
         overrides: [

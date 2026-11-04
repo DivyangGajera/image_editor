@@ -4,6 +4,7 @@ import 'package:image_editor/features/canvas/domain/models/models.dart';
 import 'package:image_editor/features/history/history.dart';
 import 'package:image_editor/features/layers/domain/models/models.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:uuid/uuid.dart';
 
 part 'canvas_notifier.g.dart';
 
@@ -295,6 +296,63 @@ class CanvasNotifier extends _$CanvasNotifier {
       selectedLayerId: _current.selectedLayerId == id ? () => null : null,
     );
 
+    await _projectRepository.saveProject(updatedProject);
+  }
+
+  /// Normalized offset applied to a duplicate so it does not hide the original.
+  static const double duplicateOffset = 0.03;
+
+  /// Duplicates layer [id] directly above the original, slightly offset,
+  /// selects the copy, records history and persists. Returns the copy's ID.
+  Future<String?> duplicateLayer(String id) async {
+    final layers = _current.project.layers;
+    final index = layers.indexWhere((l) => l.id == id);
+    if (index == -1) return null;
+
+    await _historyNotifier.pushState(layers);
+
+    final original = layers[index];
+    final copy = original.copyWith(
+      id: const Uuid().v4(),
+      x: (original.x + duplicateOffset).clamp(-0.5, 1.5),
+      y: (original.y + duplicateOffset).clamp(-0.5, 1.5),
+    );
+    final updatedList = List<CanvasLayer>.from(layers)..insert(index + 1, copy);
+    final updatedProject = _current.project.copyWith(
+      layers: _reIndexLayers(updatedList),
+      updatedAt: DateTime.now(),
+    );
+
+    _current = _current.copyWith(
+      project: updatedProject,
+      selectedLayerId: () => copy.id,
+    );
+    await _projectRepository.saveProject(updatedProject);
+    return copy.id;
+  }
+
+  /// Shows or hides layer [id]. Hidden layers are neither rendered nor exported
+  /// and are deselected; they remain listed in the layers panel.
+  Future<void> toggleVisibility(String id) async {
+    final layers = _current.project.layers;
+    final index = layers.indexWhere((l) => l.id == id);
+    if (index == -1) return;
+
+    await _historyNotifier.pushState(layers);
+
+    final toggled = layers[index].copyWith(isVisible: !layers[index].isVisible);
+    final updatedList = List<CanvasLayer>.from(layers)..[index] = toggled;
+    final updatedProject = _current.project.copyWith(
+      layers: updatedList,
+      updatedAt: DateTime.now(),
+    );
+
+    _current = _current.copyWith(
+      project: updatedProject,
+      selectedLayerId: !toggled.isVisible && _current.selectedLayerId == id
+          ? () => null
+          : null,
+    );
     await _projectRepository.saveProject(updatedProject);
   }
 

@@ -277,6 +277,43 @@ void main() {
       expect(state.project.layers[1].zIndex, 1);
     });
 
+    test('duplicateLayer inserts an offset copy directly above and selects it', () async {
+      final notifier = container.read(canvasUnderTest.notifier);
+      await notifier.addLayer(makeText('l-0', 'Bottom'));
+      await notifier.addLayer(makeText('l-1', 'Top'));
+      final undoBefore = container.read(historyProvider(initialProject.id)).totalUndoCount;
+
+      final copyId = await notifier.duplicateLayer('l-0');
+
+      final layers = readState().project.layers;
+      expect(layers.map((l) => l.id).toList(), <String?>['l-0', copyId, 'l-1']);
+      expect(layers.map((l) => l.zIndex).toList(), <int>[0, 1, 2]);
+      expect(layers[1], isA<TextLayer>());
+      expect((layers[1] as TextLayer).text, 'Bottom');
+      expect(layers[1].x, closeTo(0.5 + CanvasNotifier.duplicateOffset, 1e-12));
+      expect(readState().selectedLayerId, copyId);
+      expect(
+        container.read(historyProvider(initialProject.id)).totalUndoCount,
+        undoBefore + 1,
+      );
+    });
+
+    test('toggleVisibility hides and deselects, then shows the layer again', () async {
+      final notifier = container.read(canvasUnderTest.notifier);
+      await notifier.addLayer(makeText('l-0', 'Toggle'));
+      expect(readState().selectedLayerId, 'l-0');
+
+      await notifier.toggleVisibility('l-0');
+      expect(readState().project.layers.single.isVisible, isFalse);
+      expect(readState().selectedLayerId, isNull);
+
+      await notifier.toggleVisibility('l-0');
+      expect(readState().project.layers.single.isVisible, isTrue);
+
+      await notifier.undo();
+      expect(readState().project.layers.single.isVisible, isFalse);
+    });
+
     test('undo and redo revert and re-apply canvas layer states', () async {
       final notifier = container.read(canvasUnderTest.notifier);
       final l1 = makeText('l-1', 'First');

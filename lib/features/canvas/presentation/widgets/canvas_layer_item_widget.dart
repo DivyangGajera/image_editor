@@ -45,7 +45,8 @@ class CanvasLayerItemWidget extends ConsumerWidget {
       ),
     );
 
-    if (layer == null) {
+    // Hidden layers are not drawn and must not capture touches.
+    if (layer == null || !layer.isVisible) {
       return const SizedBox.shrink();
     }
 
