@@ -356,6 +356,42 @@ class CanvasNotifier extends _$CanvasNotifier {
     await _projectRepository.saveProject(updatedProject);
   }
 
+  /// Places [cutout] directly above the image layer [sourceId] with the same
+  /// position, scale and rotation, hides the source and selects the cutout.
+  ///
+  /// One undo step restores the original image. Does nothing if the source
+  /// no longer exists.
+  Future<void> applyCutout(String sourceId, ImageLayer cutout) async {
+    final layers = _current.project.layers;
+    final index = layers.indexWhere((l) => l.id == sourceId);
+    if (index == -1) return;
+
+    await _historyNotifier.pushState(layers);
+
+    final source = layers[index];
+    final placed = cutout.copyWith(
+      x: source.x,
+      y: source.y,
+      scale: source.scale,
+      rotation: source.rotation,
+      isFlippedHorizontally:
+          source is ImageLayer ? source.isFlippedHorizontally : null,
+    );
+    final updatedList = List<CanvasLayer>.from(layers)
+      ..[index] = source.copyWith(isVisible: false)
+      ..insert(index + 1, placed);
+    final updatedProject = _current.project.copyWith(
+      layers: _reIndexLayers(updatedList),
+      updatedAt: DateTime.now(),
+    );
+
+    _current = _current.copyWith(
+      project: updatedProject,
+      selectedLayerId: () => placed.id,
+    );
+    await _projectRepository.saveProject(updatedProject);
+  }
+
   /// Reverts to the previous state recorded in the [HistoryNotifier].
   Future<void> undo() async {
     final previousLayers = await _historyNotifier.undo(_current.project.layers);
