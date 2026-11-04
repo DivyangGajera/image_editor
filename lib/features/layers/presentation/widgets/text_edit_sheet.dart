@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_editor/features/layers/application/font_service.dart';
-import 'package:image_editor/features/layers/domain/models/models.dart';
+import 'package:image_editor/core/theme/app_theme.dart';
+import 'package:image_editor/features/fonts/application/font_library_notifier.dart';
+import 'package:image_editor/features/fonts/domain/font_catalog.dart';
+import 'package:image_editor/features/fonts/presentation/font_picker_sheet.dart';
+import 'package:image_editor/features/layers/domain/models/text_layer.dart';
 import 'package:image_editor/features/layers/presentation/widgets/text_layer_widget.dart';
 import 'package:uuid/uuid.dart';
 
-/// Modal bottom sheet for creating or styling a [TextLayer].
+/// Bottom sheet for adding or editing a [TextLayer]: content, font, size,
+/// style, color, shadow and background box, with a live preview.
 ///
-/// Provides real-time interactive controls for text editing, Google Fonts selection,
-/// font sizing, bold/italic toggles, text color, drop shadow, and background pill box styling.
+/// Returns the resulting layer from [show], or null if cancelled.
 class TextEditSheet extends ConsumerStatefulWidget {
   const TextEditSheet({
     super.key,
@@ -22,7 +25,6 @@ class TextEditSheet extends ConsumerStatefulWidget {
   /// Optional callback invoked when the user taps "Done".
   final ValueChanged<TextLayer>? onSaved;
 
-  /// Helper displaying the modal bottom sheet and returning the configured [TextLayer].
   static Future<TextLayer?> show(
     BuildContext context, {
     TextLayer? initialLayer,
@@ -30,7 +32,7 @@ class TextEditSheet extends ConsumerStatefulWidget {
     return showModalBottomSheet<TextLayer>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      showDragHandle: false,
       builder: (context) => TextEditSheet(initialLayer: initialLayer),
     );
   }
@@ -40,6 +42,38 @@ class TextEditSheet extends ConsumerStatefulWidget {
 }
 
 class _TextEditSheetState extends ConsumerState<TextEditSheet> {
+  /// Default color for new text: black, readable on the white canvas.
+  static const int defaultTextColor = 0xFF000000;
+
+  static const double minFontSize = 10.0;
+  static const double maxFontSize = 120.0;
+
+  static const List<int> paletteColors = <int>[
+    0xFF000000, // Black
+    0xFFFFFFFF, // White
+    0xFFEF4444, // Red
+    0xFFF97316, // Orange
+    0xFFFACC15, // Yellow
+    0xFF22C55E, // Green
+    0xFF06B6D4, // Cyan
+    0xFF3B82F6, // Blue
+    0xFF4F46E5, // Indigo
+    0xFF8B5CF6, // Violet
+    0xFFEC4899, // Pink
+    0xFF78350F, // Brown
+  ];
+
+  static const List<int> boxColors = <int>[
+    0xCC000000, // Translucent black
+    0xCCFFFFFF, // Translucent white
+    0xFF111827, // Ink
+    0xFFEF4444, // Red
+    0xFFFACC15, // Yellow
+    0xFF22C55E, // Green
+    0xFF3B82F6, // Blue
+    0xFFEC4899, // Pink
+  ];
+
   late final TextEditingController _textController;
   late String _fontFamily;
   late double _fontSize;
@@ -52,42 +86,18 @@ class _TextEditSheetState extends ConsumerState<TextEditSheet> {
   late int _boxColorValue;
   late double _boxBorderRadius;
 
-  static const List<int> _paletteColors = <int>[
-    0xFFFFFFFF, // Pure White
-    0xFF000000, // Black
-    0xFFF44336, // Crimson Red
-    0xFFE91E63, // Hot Pink
-    0xFF9C27B0, // Vivid Purple
-    0xFF3F51B5, // Indigo
-    0xFF2196F3, // Dodger Blue
-    0xFF00BCD4, // Cyan
-    0xFF009688, // Teal
-    0xFF4CAF50, // Grass Green
-    0xFFFFEB3B, // Lemon Yellow
-    0xFFFF9800, // Vibrant Orange
-    0xFFFF5722, // Deep Coral
-  ];
-
-  static const List<int> _boxColors = <int>[
-    0xCC000000, // Semi-transparent black
-    0xCCFFFFFF, // Semi-transparent white
-    0xFF1E293B, // Slate navy
-    0xFFEF4444, // Red
-    0xFF3B82F6, // Royal blue
-    0xFF10B981, // Emerald green
-    0xFFF59E0B, // Amber
-  ];
+  bool get _isNew => widget.initialLayer == null;
 
   @override
   void initState() {
     super.initState();
     final initial = widget.initialLayer;
-    _textController = TextEditingController(text: initial?.text ?? 'Your Text Here');
-    _fontFamily = initial?.fontFamily ?? 'Roboto';
-    _fontSize = initial?.fontSize ?? 28.0;
+    _textController = TextEditingController(text: initial?.text ?? 'Your text');
+    _fontFamily = initial?.fontFamily ?? systemDefaultFontFamily;
+    _fontSize = (initial?.fontSize ?? 28.0).clamp(minFontSize, maxFontSize);
     _isBold = initial?.isBold ?? false;
     _isItalic = initial?.isItalic ?? false;
-    _textColorValue = initial?.textColorValue ?? 0xFFFFFFFF;
+    _textColorValue = initial?.textColorValue ?? defaultTextColor;
     _hasShadow = initial?.shadowColorValue != null;
     _shadowColorValue = initial?.shadowColorValue ?? 0x8A000000;
     _hasBackgroundBox = initial?.boxColorValue != null;
@@ -105,6 +115,9 @@ class _TextEditSheetState extends ConsumerState<TextEditSheet> {
 
   TextLayer _buildCurrentLayer() {
     final base = widget.initialLayer;
+    final libraryEntry = ref.read(fontLibraryProvider).value?.entryFor(_fontFamily);
+    final text = _textController.text.trim().isEmpty ? 'Your text' : _textController.text;
+
     return TextLayer(
       id: base?.id ?? const Uuid().v4(),
       x: base?.x ?? 0.5,
@@ -113,10 +126,10 @@ class _TextEditSheetState extends ConsumerState<TextEditSheet> {
       rotation: base?.rotation ?? 0.0,
       zIndex: base?.zIndex ?? 0,
       isVisible: base?.isVisible ?? true,
-      text: _textController.text.isEmpty ? 'Your Text Here' : _textController.text,
+      text: text,
       fontFamily: _fontFamily,
-      isCustomFont: base?.isCustomFont ?? false,
-      customFontPath: base?.customFontPath,
+      isCustomFont: _fontFamily != systemDefaultFontFamily,
+      customFontPath: libraryEntry?.relativePath,
       textColorValue: _textColorValue,
       fontSize: _fontSize,
       isBold: _isBold,
@@ -133,371 +146,252 @@ class _TextEditSheetState extends ConsumerState<TextEditSheet> {
     Navigator.of(context).pop(layer);
   }
 
+  Future<void> _chooseFont() async {
+    final family = await FontPickerSheet.show(context, currentFamily: _fontFamily);
+    if (family != null && mounted) setState(() => _fontFamily = family);
+  }
+
+  String _fontLabel(FontLibraryState? library) {
+    if (_fontFamily == systemDefaultFontFamily) return 'Default';
+    final entry = library?.entryFor(_fontFamily);
+    if (entry != null) return entry.displayName;
+    final name = _fontFamily.replaceFirst(FontLibraryNotifier.importedFamilyPrefix, '');
+    return '$name (not installed)';
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final fontService = ref.watch(fontServiceProvider);
-    final currentLayer = _buildCurrentLayer();
+    final colors = theme.colorScheme;
+    final library = ref.watch(fontLibraryProvider).value;
+    final media = MediaQuery.of(context);
 
     return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: Material(
-        color: theme.scaffoldBackgroundColor,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20.0)),
-        clipBehavior: Clip.antiAlias,
-        elevation: 12.0,
-        child: Container(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.85,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-            // Drag handle pill
-            Center(
-              child: Container(
-                margin: const EdgeInsets.only(top: 10.0, bottom: 4.0),
-                width: 38.0,
-                height: 4.0,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(2.0),
-                ),
-              ),
-            ),
-
-            // Modal Header: Cancel | Title | Done
+      padding: EdgeInsets.only(bottom: media.viewInsets.bottom),
+      child: SizedBox(
+        height: media.size.height * 0.88,
+        child: Column(
+          children: [
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              padding: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 0.0),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
                     child: const Text('Cancel'),
                   ),
-                  Text(
-                    widget.initialLayer == null ? 'Add Text' : 'Edit Text',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: Text(
+                      _isNew ? 'Add Text' : 'Edit Text',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                     ),
                   ),
                   FilledButton(
                     key: const ValueKey('text_edit_done_button'),
                     onPressed: _onDone,
+                    style: FilledButton.styleFrom(minimumSize: const Size(64.0, 40.0)),
                     child: const Text('Done'),
                   ),
                 ],
               ),
             ),
-
-            const Divider(height: 1.0),
-
-            // Scrollable Content
-            Flexible(
+            // Live preview, rendered exactly like on the canvas.
+            Container(
+              key: const ValueKey('text_preview'),
+              height: 120.0,
+              margin: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 4.0),
+              padding: const EdgeInsets.all(12.0),
+              decoration: BoxDecoration(
+                color: AppTheme.canvasBackdrop,
+                borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+              ),
+              child: Center(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: TextLayerWidget(layer: _buildCurrentLayer()),
+                ),
+              ),
+            ),
+            Expanded(
               child: ListView(
-                padding: const EdgeInsets.all(16.0),
-                shrinkWrap: true,
+                padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 24.0),
                 children: [
-                  // Live Preview Box
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 24.0, horizontal: 16.0),
-                    decoration: BoxDecoration(
-                      color: Colors.black26,
-                      borderRadius: BorderRadius.circular(12.0),
-                      border: Border.all(
-                        color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-                      ),
-                    ),
-                    alignment: Alignment.center,
-                    child: TextLayerWidget(layer: currentLayer),
-                  ),
-
-                  const SizedBox(height: 16.0),
-
-                  // Text Input
                   TextField(
                     key: const ValueKey('text_input_field'),
                     controller: _textController,
-                    maxLines: 2,
-                    decoration: InputDecoration(
-                      labelText: 'Text Content',
-                      hintText: 'Enter text...',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10.0),
-                      ),
-                      filled: true,
-                    ),
+                    minLines: 1,
+                    maxLines: 4,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: const InputDecoration(hintText: 'Type your text'),
                     onChanged: (_) => setState(() {}),
                   ),
-
-                  const SizedBox(height: 20.0),
-
-                  // Typography Picker (Google Fonts)
-                  Text(
-                    'Font Family',
-                    style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 8.0),
-                  SizedBox(
-                    height: 44.0,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: FontService.availableGoogleFonts.length,
-                      separatorBuilder: (_, _) => const SizedBox(width: 8.0),
-                      itemBuilder: (context, index) {
-                        final font = FontService.availableGoogleFonts[index];
-                        final isSelected = _fontFamily == font;
-                        final previewStyle = fontService.getTextStyle(
-                          fontFamily: font,
-                          baseStyle: TextStyle(
-                            color: isSelected
-                                ? theme.colorScheme.onPrimary
-                                : theme.colorScheme.onSurface,
-                            fontSize: 14.0,
-                          ),
-                        );
-
-                        return FilterChip(
-                          key: ValueKey('font_chip_$font'),
-                          selected: isSelected,
-                          label: Text(font, style: previewStyle),
-                          onSelected: (_) {
-                            setState(() {
-                              _fontFamily = font;
-                            });
-                          },
-                        );
-                      },
+                  const SizedBox(height: 12.0),
+                  Card(
+                    child: ListTile(
+                      key: const ValueKey('font_picker_row'),
+                      leading: const Icon(Icons.font_download_outlined),
+                      title: const Text('Font'),
+                      subtitle: Text(_fontLabel(library)),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: _chooseFont,
                     ),
                   ),
-
-                  const SizedBox(height: 20.0),
-
-                  // Font Size Slider & Style Toggles
+                  const SizedBox(height: 16.0),
+                  _SectionLabel('Size', trailing: '${_fontSize.round()} pt'),
+                  Slider(
+                    key: const ValueKey('font_size_slider'),
+                    value: _fontSize,
+                    min: minFontSize,
+                    max: maxFontSize,
+                    onChanged: (value) => setState(() => _fontSize = value),
+                  ),
                   Row(
                     children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  'Font Size',
-                                  style: theme.textTheme.titleSmall
-                                      ?.copyWith(fontWeight: FontWeight.w600),
-                                ),
-                                Text(
-                                  '${_fontSize.round()} pt',
-                                  style: theme.textTheme.bodySmall,
-                                ),
-                              ],
-                            ),
-                            Slider(
-                              key: const ValueKey('font_size_slider'),
-                              value: _fontSize,
-                              min: 12.0,
-                              max: 120.0,
-                              divisions: 108,
-                              onChanged: (val) {
-                                setState(() {
-                                  _fontSize = val;
-                                });
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12.0),
-                      IconButton.filledTonal(
+                      FilterChip(
                         key: const ValueKey('bold_toggle_button'),
-                        isSelected: _isBold,
-                        onPressed: () {
-                          setState(() {
-                            _isBold = !_isBold;
-                          });
-                        },
-                        icon: const Icon(Icons.format_bold),
+                        avatar: const Icon(Icons.format_bold_rounded),
+                        label: const Text('Bold'),
+                        showCheckmark: false,
+                        selected: _isBold,
+                        onSelected: (value) => setState(() => _isBold = value),
                       ),
-                      const SizedBox(width: 6.0),
-                      IconButton.filledTonal(
+                      const SizedBox(width: 8.0),
+                      FilterChip(
                         key: const ValueKey('italic_toggle_button'),
-                        isSelected: _isItalic,
-                        onPressed: () {
-                          setState(() {
-                            _isItalic = !_isItalic;
-                          });
-                        },
-                        icon: const Icon(Icons.format_italic),
+                        avatar: const Icon(Icons.format_italic_rounded),
+                        label: const Text('Italic'),
+                        showCheckmark: false,
+                        selected: _isItalic,
+                        onSelected: (value) => setState(() => _isItalic = value),
                       ),
                     ],
                   ),
-
-                  const SizedBox(height: 20.0),
-
-                  // Text Color Palette
-                  Text(
-                    'Text Color',
-                    style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                  const SizedBox(height: 16.0),
+                  const _SectionLabel('Color'),
+                  const SizedBox(height: 8.0),
+                  _ColorRow(
+                    keyPrefix: 'text_color',
+                    colors: paletteColors,
+                    selected: _textColorValue,
+                    onSelected: (value) => setState(() => _textColorValue = value),
                   ),
                   const SizedBox(height: 8.0),
-                  SizedBox(
-                    height: 40.0,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _paletteColors.length,
-                      separatorBuilder: (_, _) => const SizedBox(width: 8.0),
-                      itemBuilder: (context, index) {
-                        final colorVal = _paletteColors[index];
-                        final isSelected = _textColorValue == colorVal;
-
-                        return GestureDetector(
-                          key: ValueKey('text_color_$colorVal'),
-                          onTap: () {
-                            setState(() {
-                              _textColorValue = colorVal;
-                            });
-                          },
-                          child: Container(
-                            width: 36.0,
-                            height: 36.0,
-                            decoration: BoxDecoration(
-                              color: Color(colorVal),
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: isSelected
-                                    ? theme.colorScheme.primary
-                                    : Colors.white24,
-                                width: isSelected ? 3.0 : 1.0,
-                              ),
-                            ),
-                            child: isSelected
-                                ? Icon(
-                                    Icons.check,
-                                    size: 20.0,
-                                    color: colorVal == 0xFFFFFFFF
-                                        ? Colors.black
-                                        : Colors.white,
-                                  )
-                                : null,
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-
-                  const SizedBox(height: 20.0),
-
-                  // Drop Shadow Toggle
                   SwitchListTile(
                     key: const ValueKey('shadow_switch'),
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Text Drop Shadow'),
+                    title: const Text('Drop shadow'),
                     value: _hasShadow,
-                    onChanged: (val) {
-                      setState(() {
-                        _hasShadow = val;
-                      });
-                    },
+                    onChanged: (value) => setState(() => _hasShadow = value),
                   ),
-
-                  const SizedBox(height: 12.0),
-
-                  // Background Box Toggle
                   SwitchListTile(
                     key: const ValueKey('background_box_switch'),
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Background Box'),
+                    title: const Text('Background box'),
                     value: _hasBackgroundBox,
-                    onChanged: (val) {
-                      setState(() {
-                        _hasBackgroundBox = val;
-                      });
-                    },
+                    onChanged: (value) => setState(() => _hasBackgroundBox = value),
                   ),
-
                   if (_hasBackgroundBox) ...[
-                    const SizedBox(height: 8.0),
-                    Text(
-                      'Box Color',
-                      style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
-                    ),
-                    const SizedBox(height: 8.0),
-                    SizedBox(
-                      height: 36.0,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: _boxColors.length,
-                        separatorBuilder: (_, _) => const SizedBox(width: 8.0),
-                        itemBuilder: (context, index) {
-                          final colorVal = _boxColors[index];
-                          final isSelected = _boxColorValue == colorVal;
-
-                          return GestureDetector(
-                            key: ValueKey('box_color_$colorVal'),
-                            onTap: () {
-                              setState(() {
-                                _boxColorValue = colorVal;
-                              });
-                            },
-                            child: Container(
-                              width: 32.0,
-                              height: 32.0,
-                              decoration: BoxDecoration(
-                                color: Color(colorVal),
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: isSelected
-                                      ? theme.colorScheme.primary
-                                      : Colors.white24,
-                                  width: isSelected ? 3.0 : 1.0,
-                                ),
-                              ),
-                              child: isSelected
-                                  ? const Icon(
-                                      Icons.check,
-                                      size: 16.0,
-                                      color: Colors.white,
-                                    )
-                                  : null,
-                            ),
-                          );
-                        },
-                      ),
+                    _ColorRow(
+                      keyPrefix: 'box_color',
+                      colors: boxColors,
+                      selected: _boxColorValue,
+                      onSelected: (value) => setState(() => _boxColorValue = value),
                     ),
                     const SizedBox(height: 12.0),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('Corner Radius', style: theme.textTheme.bodyMedium),
-                        Text('${_boxBorderRadius.round()} px', style: theme.textTheme.bodySmall),
-                      ],
-                    ),
+                    _SectionLabel('Corner radius', trailing: '${_boxBorderRadius.round()}'),
                     Slider(
                       key: const ValueKey('box_border_radius_slider'),
                       value: _boxBorderRadius,
                       min: 0.0,
-                      max: 32.0,
-                      divisions: 32,
-                      onChanged: (val) {
-                        setState(() {
-                          _boxBorderRadius = val;
-                        });
-                      },
+                      max: 40.0,
+                      onChanged: (value) => setState(() => _boxBorderRadius = value),
                     ),
                   ],
+                  if (library != null && !library.isInstalled(_fontFamily))
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Text(
+                        'This text shows in the default font until its font is installed.',
+                        style: TextStyle(color: colors.error),
+                      ),
+                    ),
                 ],
               ),
             ),
           ],
         ),
       ),
-    ),
-  );
+    );
+  }
 }
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.label, {this.trailing});
+
+  final String label;
+  final String? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Expanded(child: Text(label, style: theme.textTheme.labelLarge)),
+        if (trailing != null)
+          Text(
+            trailing!,
+            style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.primary),
+          ),
+      ],
+    );
+  }
+}
+
+class _ColorRow extends StatelessWidget {
+  const _ColorRow({
+    required this.keyPrefix,
+    required this.colors,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final String keyPrefix;
+  final List<int> colors;
+  final int selected;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Wrap(
+      spacing: 10.0,
+      runSpacing: 10.0,
+      children: [
+        for (final color in colors)
+          Semantics(
+            button: true,
+            selected: color == selected,
+            label: 'Color',
+            child: GestureDetector(
+              key: ValueKey('${keyPrefix}_$color'),
+              onTap: () => onSelected(color),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: 34.0,
+                height: 34.0,
+                decoration: BoxDecoration(
+                  color: Color(color),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: color == selected ? scheme.primary : scheme.outlineVariant,
+                    width: color == selected ? 3.0 : 1.0,
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
 }

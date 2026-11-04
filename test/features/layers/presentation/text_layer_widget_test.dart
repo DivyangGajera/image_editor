@@ -3,31 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_editor/features/fonts/application/font_library_notifier.dart';
 import 'package:image_editor/features/fonts/domain/font_catalog.dart';
-import 'package:image_editor/features/fonts/domain/font_entry.dart';
 import 'package:image_editor/features/layers/domain/models/models.dart';
 import 'package:image_editor/features/layers/presentation/widgets/text_layer_widget.dart';
 
-/// Font library with a fixed set of installed fonts.
-class FixedFontLibrary extends FontLibraryNotifier {
-  FixedFontLibrary(this.families);
-  final List<String> families;
-
-  @override
-  Future<FontLibraryState> build() async => FontLibraryState(
-        fonts: [
-          for (final family in families)
-            FontEntry(
-              id: family,
-              family: family,
-              displayName: family,
-              isImported: false,
-              relativePath: 'fonts/$family.ttf',
-              sizeBytes: 1,
-              addedAt: DateTime(2026),
-            ),
-        ],
-      );
-}
+import '../../../helpers/fixed_font_library.dart';
 
 void main() {
 
