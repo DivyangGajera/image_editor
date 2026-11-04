@@ -53,6 +53,14 @@ class EditorCommands {
     return true;
   }
 
+  /// Adds a new text layer, scaled so its font size reads like it would on a
+  /// phone-width canvas (see [LayerPlacement.textScale]).
+  Future<void> addText(TextLayer text) async {
+    await _canvas().addLayer(
+      text.copyWith(scale: LayerPlacement.textScale(_canvasSize.width)),
+    );
+  }
+
   /// Adds a sticker sized to [LayerPlacement.stickerWidthFraction] of the
   /// canvas width.
   Future<void> addSticker(StickerLayer sticker) async {

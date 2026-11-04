@@ -128,6 +128,12 @@ void main() {
     expect(layers(), isEmpty);
   });
 
+  test('addText scales text relative to a phone-width canvas', () async {
+    await commands.addText(const TextLayer(id: 't', x: 0.5, y: 0.5, text: 'Hello'));
+
+    expect(layers().single.scale, closeTo(1000 / 360, 1e-9));
+  });
+
   test('addSticker sizes the sticker to 35% of the canvas width', () async {
     await commands.addSticker(
       const StickerLayer(id: 's', x: 0.5, y: 0.5, assetPath: 'assets/stickers/x.png'),
