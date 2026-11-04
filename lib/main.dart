@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_editor/core/constants/app_constants.dart';
+import 'package:image_editor/core/theme/app_theme.dart';
 import 'package:image_editor/features/collage/collage.dart';
 
 void main() {
@@ -21,25 +22,7 @@ class OfflineImageEditorApp extends StatelessWidget {
     return MaterialApp(
       title: AppConstants.appTitle,
       debugShowCheckedModeBanner: false,
-      themeMode: ThemeMode.dark,
-      theme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.light,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF6366F1),
-          brightness: Brightness.light,
-        ),
-      ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF121212),
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF6366F1),
-          brightness: Brightness.dark,
-          surface: const Color(0xFF1E1E1E),
-        ),
-      ),
+      theme: AppTheme.light(),
       home: const ImageEditorHomeScreen(),
     );
   }
@@ -80,7 +63,7 @@ class ImageEditorHomeScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 24.0),
-            ElevatedButton.icon(
+            FilledButton.icon(
               key: const ValueKey('open_collage_setup_button'),
               onPressed: () {
                 Navigator.of(context).push(
@@ -91,17 +74,6 @@ class ImageEditorHomeScreen extends StatelessWidget {
               },
               icon: const Icon(Icons.auto_awesome_mosaic_outlined),
               label: const Text('Collage & Filmstrip Maker'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4E95FF),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20.0,
-                  vertical: 12.0,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12.0),
-                ),
-              ),
             ),
           ],
         ),

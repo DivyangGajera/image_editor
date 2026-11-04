@@ -25,6 +25,8 @@ class CollageColorPalette extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return SizedBox(
       height: 44.0,
       child: ListView.separated(
@@ -47,15 +49,13 @@ class CollageColorPalette extends StatelessWidget {
                 color: color,
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: isSelected
-                      ? const Color(0xFF4E95FF)
-                      : const Color(0xFF3E3E50),
+                  color: isSelected ? colors.primary : colors.outlineVariant,
                   width: isSelected ? 3.0 : 1.5,
                 ),
                 boxShadow: isSelected
                     ? [
                         BoxShadow(
-                          color: const Color(0xFF4E95FF).withAlpha(120),
+                          color: colors.primary.withValues(alpha: 0.45),
                           blurRadius: 8.0,
                           spreadRadius: 1.0,
                         ),

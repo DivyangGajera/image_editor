@@ -21,6 +21,7 @@ class CollagePreviewBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final aspectRatio = config.canvasWidth / config.canvasHeight;
+    final colors = Theme.of(context).colorScheme;
 
     return AspectRatio(
       aspectRatio: aspectRatio,
@@ -28,15 +29,12 @@ class CollagePreviewBox extends StatelessWidget {
         key: const ValueKey('collage_preview_box'),
         clipBehavior: Clip.hardEdge,
         decoration: BoxDecoration(
-          color: const Color(0xFF161622),
+          color: colors.surfaceContainerLowest,
           borderRadius: BorderRadius.circular(16.0),
-          border: Border.all(
-            color: const Color(0xFF2E2E40),
-            width: 1.5,
-          ),
+          border: Border.all(color: colors.outlineVariant, width: 1.5),
           boxShadow: const [
             BoxShadow(
-              color: Color(0x44000000),
+              color: Color(0x14000000),
               blurRadius: 12.0,
               offset: Offset(0, 4),
             ),
@@ -50,6 +48,8 @@ class CollagePreviewBox extends StatelessWidget {
   }
 
   Widget _buildEmptyPlaceholder(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -57,13 +57,13 @@ class CollagePreviewBox extends StatelessWidget {
           Icon(
             Icons.auto_awesome_mosaic_outlined,
             size: 48.0,
-            color: Colors.white.withAlpha(80),
+            color: colors.outline,
           ),
           const SizedBox(height: 12.0),
           Text(
             'Select 2 to 9 photos',
             style: TextStyle(
-              color: Colors.white.withAlpha(160),
+              color: colors.onSurface,
               fontSize: 14.0,
               fontWeight: FontWeight.w500,
             ),
@@ -72,7 +72,7 @@ class CollagePreviewBox extends StatelessWidget {
           Text(
             'Live layout preview will appear here',
             style: TextStyle(
-              color: Colors.white.withAlpha(90),
+              color: colors.onSurfaceVariant,
               fontSize: 12.0,
             ),
           ),
@@ -114,14 +114,17 @@ class CollagePreviewBox extends StatelessWidget {
                 padding: EdgeInsets.all(scaledBorder),
                 child: Container(
                   clipBehavior: Clip.hardEdge,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF222230),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   ),
                   child: Image.file(
                     File(cell.sourceImagePath),
                     fit: BoxFit.cover,
+                    cacheWidth: cellW.isFinite && cellW > 0
+                        ? (cellW * MediaQuery.devicePixelRatioOf(context)).round()
+                        : null,
                     errorBuilder: (_, error, stackTrace) => const Center(
-                      child: Icon(Icons.broken_image, color: Colors.white38),
+                      child: Icon(Icons.broken_image),
                     ),
                   ),
                 ),

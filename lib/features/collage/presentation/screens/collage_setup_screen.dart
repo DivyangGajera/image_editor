@@ -80,18 +80,14 @@ class _CollageSetupScreenState extends ConsumerState<CollageSetupScreen> {
     final state = ref.watch(collageNotifierProvider);
     final notifier = ref.read(collageNotifierProvider.notifier);
     final engine = ref.watch(collageEngineProvider);
+    final colors = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF101018),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF161622),
-        title: const Text(
-          'Collage & Filmstrip',
-          style: TextStyle(fontSize: 18.0, fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Collage & Filmstrip'),
         actions: [
           Padding(
-            padding: const EdgeInsets.only(right: 12.0),
+            padding: const EdgeInsets.only(right: 8.0),
             child: TextButton.icon(
               key: const ValueKey('create_collage_project_button'),
               onPressed: state.canCreate ? _handleCreateProject : null,
@@ -99,67 +95,49 @@ class _CollageSetupScreenState extends ConsumerState<CollageSetupScreen> {
                   ? const SizedBox(
                       width: 16.0,
                       height: 16.0,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.0,
-                        color: Colors.white,
-                      ),
+                      child: CircularProgressIndicator(strokeWidth: 2.0),
                     )
                   : const Icon(Icons.check, size: 18.0),
               label: const Text('Create'),
-              style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFF4E95FF),
-                disabledForegroundColor: Colors.white24,
-                textStyle: const TextStyle(fontWeight: FontWeight.bold),
-              ),
             ),
           ),
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Photo Selection Strip
             _buildSelectionHeader(state),
             const SizedBox(height: 12.0),
             _buildThumbnailStrip(state, notifier),
             const SizedBox(height: 20.0),
-
-            // Live Preview Card
             CollagePreviewBox(
               imagePaths: state.selectedImagePaths,
               config: state.config,
               engine: engine,
             ),
             const SizedBox(height: 24.0),
-
-            // Layout Preset Switcher
             _buildSectionTitle('Layout Preset'),
             const SizedBox(height: 10.0),
             _buildPresetSelector(state, notifier),
             const SizedBox(height: 24.0),
-
-            // Border & Margin Sliders
             _buildSectionTitle('Frame & Spacing'),
             const SizedBox(height: 12.0),
             _buildBorderControls(state, notifier),
             const SizedBox(height: 32.0),
-
-            // Bottom CTA
             SizedBox(
               width: double.infinity,
-              height: 50.0,
-              child: ElevatedButton.icon(
+              child: FilledButton.icon(
                 key: const ValueKey('bottom_create_project_button'),
                 onPressed: state.canCreate ? _handleCreateProject : null,
                 icon: state.isCreating
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 20.0,
                         height: 20.0,
                         child: CircularProgressIndicator(
                           strokeWidth: 2.0,
-                          color: Colors.white,
+                          color: colors.onPrimary,
                         ),
                       )
                     : const Icon(Icons.brush),
@@ -167,19 +145,6 @@ class _CollageSetupScreenState extends ConsumerState<CollageSetupScreen> {
                   state.isCreating
                       ? 'Building Collage Layers...'
                       : 'Open in Canvas Editor',
-                  style: const TextStyle(
-                    fontSize: 15.0,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF4E95FF),
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor: const Color(0xFF222230),
-                  disabledForegroundColor: Colors.white24,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12.0),
-                  ),
                 ),
               ),
             ),
@@ -191,40 +156,26 @@ class _CollageSetupScreenState extends ConsumerState<CollageSetupScreen> {
   }
 
   Widget _buildSelectionHeader(CollageState state) {
+    final colors = Theme.of(context).colorScheme;
     final count = state.selectedImagePaths.length;
     final bool isCountValid = count >= 2 && count <= 9;
+    final accent = isCountValid ? colors.primary : colors.error;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        const Text(
-          'Photos',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 16.0,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        _buildSectionTitle('Photos'),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 4.0),
           decoration: BoxDecoration(
-            color: isCountValid
-                ? const Color(0xFF4E95FF).withAlpha(40)
-                : const Color(0xFFFF4081).withAlpha(40),
+            color: accent.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12.0),
-            border: Border.all(
-              color: isCountValid
-                  ? const Color(0xFF4E95FF)
-                  : const Color(0xFFFF4081),
-              width: 1.0,
-            ),
+            border: Border.all(color: accent),
           ),
           child: Text(
             '$count / 9 (Min 2)',
             style: TextStyle(
-              color: isCountValid
-                  ? const Color(0xFF4E95FF)
-                  : const Color(0xFFFF4081),
+              color: accent,
               fontSize: 12.0,
               fontWeight: FontWeight.w600,
             ),
@@ -235,6 +186,8 @@ class _CollageSetupScreenState extends ConsumerState<CollageSetupScreen> {
   }
 
   Widget _buildThumbnailStrip(CollageState state, CollageNotifier notifier) {
+    final colors = Theme.of(context).colorScheme;
+
     return SizedBox(
       height: 80.0,
       child: ListView.separated(
@@ -243,7 +196,6 @@ class _CollageSetupScreenState extends ConsumerState<CollageSetupScreen> {
         separatorBuilder: (_, index) => const SizedBox(width: 8.0),
         itemBuilder: (context, index) {
           if (index == 0) {
-            // Add photos tile
             return InkWell(
               key: const ValueKey('add_photos_button'),
               onTap: _pickImages,
@@ -252,26 +204,23 @@ class _CollageSetupScreenState extends ConsumerState<CollageSetupScreen> {
                 width: 72.0,
                 height: 80.0,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E1E2C),
+                  color: colors.primaryContainer.withValues(alpha: 0.4),
                   borderRadius: BorderRadius.circular(10.0),
-                  border: Border.all(
-                    color: const Color(0xFF3E3E50),
-                    style: BorderStyle.solid,
-                  ),
+                  border: Border.all(color: colors.outlineVariant),
                 ),
-                child: const Column(
+                child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
                       Icons.add_photo_alternate_outlined,
-                      color: Color(0xFF4E95FF),
+                      color: colors.primary,
                       size: 26.0,
                     ),
-                    SizedBox(height: 4.0),
+                    const SizedBox(height: 4.0),
                     Text(
                       'Add',
                       style: TextStyle(
-                        color: Colors.white70,
+                        color: colors.onSurfaceVariant,
                         fontSize: 11.0,
                         fontWeight: FontWeight.w500,
                       ),
@@ -294,16 +243,14 @@ class _CollageSetupScreenState extends ConsumerState<CollageSetupScreen> {
                 clipBehavior: Clip.hardEdge,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(10.0),
-                  border: Border.all(
-                    color: const Color(0xFF2E2E40),
-                    width: 1.0,
-                  ),
+                  border: Border.all(color: colors.outlineVariant),
                 ),
                 child: Image.file(
                   File(path),
                   fit: BoxFit.cover,
-                  errorBuilder: (_, error, stackTrace) => Container(
-                    color: const Color(0xFF2A2A3C),
+                  cacheWidth: 216,
+                  errorBuilder: (_, error, stackTrace) => ColoredBox(
+                    color: colors.surfaceContainerHighest,
                     child: const Icon(Icons.broken_image, size: 20.0),
                   ),
                 ),
@@ -316,15 +263,11 @@ class _CollageSetupScreenState extends ConsumerState<CollageSetupScreen> {
                   onTap: () => notifier.removeImage(imageIndex),
                   child: Container(
                     padding: const EdgeInsets.all(2.0),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFFF4081),
+                    decoration: BoxDecoration(
+                      color: colors.error,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
-                      Icons.close,
-                      size: 14.0,
-                      color: Colors.white,
-                    ),
+                    child: Icon(Icons.close, size: 14.0, color: colors.onError),
                   ),
                 ),
               ),
@@ -374,6 +317,8 @@ class _CollageSetupScreenState extends ConsumerState<CollageSetupScreen> {
     required bool isSelected,
     required VoidCallback onTap,
   }) {
+    final colors = Theme.of(context).colorScheme;
+
     return Expanded(
       child: GestureDetector(
         key: ValueKey(key),
@@ -383,13 +328,11 @@ class _CollageSetupScreenState extends ConsumerState<CollageSetupScreen> {
           padding: const EdgeInsets.symmetric(vertical: 10.0),
           decoration: BoxDecoration(
             color: isSelected
-                ? const Color(0xFF4E95FF).withAlpha(40)
-                : const Color(0xFF1E1E2C),
+                ? colors.primaryContainer
+                : colors.surfaceContainerLowest,
             borderRadius: BorderRadius.circular(10.0),
             border: Border.all(
-              color: isSelected
-                  ? const Color(0xFF4E95FF)
-                  : const Color(0xFF2E2E40),
+              color: isSelected ? colors.primary : colors.outlineVariant,
               width: 1.5,
             ),
           ),
@@ -398,13 +341,15 @@ class _CollageSetupScreenState extends ConsumerState<CollageSetupScreen> {
               Icon(
                 icon,
                 size: 20.0,
-                color: isSelected ? const Color(0xFF4E95FF) : Colors.white70,
+                color: isSelected ? colors.primary : colors.onSurfaceVariant,
               ),
               const SizedBox(height: 4.0),
               Text(
                 title,
                 style: TextStyle(
-                  color: isSelected ? Colors.white : Colors.white60,
+                  color: isSelected
+                      ? colors.onPrimaryContainer
+                      : colors.onSurfaceVariant,
                   fontSize: 11.0,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 ),
@@ -417,73 +362,62 @@ class _CollageSetupScreenState extends ConsumerState<CollageSetupScreen> {
   }
 
   Widget _buildBorderControls(CollageState state, CollageNotifier notifier) {
-    return Container(
-      padding: const EdgeInsets.all(16.0),
-      decoration: BoxDecoration(
-        color: const Color(0xFF161622),
-        borderRadius: BorderRadius.circular(16.0),
-        border: Border.all(
-          color: const Color(0xFF2E2E40),
-          width: 1.0,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Border Width
-          _buildSliderRow(
-            sliderKey: 'border_width_slider',
-            title: 'Border Width',
-            valueText: '${state.config.borderWidth.round()} px',
-            value: state.config.borderWidth,
-            min: 0.0,
-            max: 30.0,
-            divisions: 30,
-            onChanged: (val) => notifier.setBorderWidth(val),
-          ),
-          const SizedBox(height: 12.0),
+    final colors = Theme.of(context).colorScheme;
 
-          // Border Color Palette
-          const Text(
-            'Border Color',
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 13.0,
-              fontWeight: FontWeight.w500,
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSliderRow(
+              sliderKey: 'border_width_slider',
+              title: 'Border Width',
+              valueText: '${state.config.borderWidth.round()} px',
+              value: state.config.borderWidth,
+              min: 0.0,
+              max: 30.0,
+              divisions: 30,
+              onChanged: (val) => notifier.setBorderWidth(val),
             ),
-          ),
-          const SizedBox(height: 8.0),
-          CollageColorPalette(
-            selectedColorValue: state.config.borderColorValue,
-            onColorSelected: (val) => notifier.setBorderColor(val),
-          ),
-          const Divider(color: Color(0xFF2E2E40), height: 28.0),
-
-          // Cell Spacing
-          _buildSliderRow(
-            sliderKey: 'spacing_slider',
-            title: 'Inner Spacing',
-            valueText: '${state.config.spacing.round()} px',
-            value: state.config.spacing,
-            min: 0.0,
-            max: 50.0,
-            divisions: 50,
-            onChanged: (val) => notifier.setSpacing(val),
-          ),
-          const SizedBox(height: 12.0),
-
-          // Outer Margin
-          _buildSliderRow(
-            sliderKey: 'outer_margin_slider',
-            title: 'Outer Margin',
-            valueText: '${state.config.outerMargin.round()} px',
-            value: state.config.outerMargin,
-            min: 0.0,
-            max: 60.0,
-            divisions: 60,
-            onChanged: (val) => notifier.setOuterMargin(val),
-          ),
-        ],
+            const SizedBox(height: 12.0),
+            Text(
+              'Border Color',
+              style: TextStyle(
+                color: colors.onSurfaceVariant,
+                fontSize: 13.0,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8.0),
+            CollageColorPalette(
+              selectedColorValue: state.config.borderColorValue,
+              onColorSelected: (val) => notifier.setBorderColor(val),
+            ),
+            const Divider(height: 28.0),
+            _buildSliderRow(
+              sliderKey: 'spacing_slider',
+              title: 'Inner Spacing',
+              valueText: '${state.config.spacing.round()} px',
+              value: state.config.spacing,
+              min: 0.0,
+              max: 50.0,
+              divisions: 50,
+              onChanged: (val) => notifier.setSpacing(val),
+            ),
+            const SizedBox(height: 12.0),
+            _buildSliderRow(
+              sliderKey: 'outer_margin_slider',
+              title: 'Outer Margin',
+              valueText: '${state.config.outerMargin.round()} px',
+              value: state.config.outerMargin,
+              min: 0.0,
+              max: 60.0,
+              divisions: 60,
+              onChanged: (val) => notifier.setOuterMargin(val),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -498,6 +432,8 @@ class _CollageSetupScreenState extends ConsumerState<CollageSetupScreen> {
     required int divisions,
     required ValueChanged<double> onChanged,
   }) {
+    final colors = Theme.of(context).colorScheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -506,38 +442,29 @@ class _CollageSetupScreenState extends ConsumerState<CollageSetupScreen> {
           children: [
             Text(
               title,
-              style: const TextStyle(
-                color: Colors.white70,
+              style: TextStyle(
+                color: colors.onSurfaceVariant,
                 fontSize: 13.0,
                 fontWeight: FontWeight.w500,
               ),
             ),
             Text(
               valueText,
-              style: const TextStyle(
-                color: Color(0xFF4E95FF),
+              style: TextStyle(
+                color: colors.primary,
                 fontSize: 12.0,
                 fontWeight: FontWeight.bold,
               ),
             ),
           ],
         ),
-        SliderTheme(
-          data: SliderTheme.of(context).copyWith(
-            activeTrackColor: const Color(0xFF4E95FF),
-            inactiveTrackColor: const Color(0xFF2A2A3C),
-            thumbColor: Colors.white,
-            trackHeight: 3.0,
-            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7.0),
-          ),
-          child: Slider(
-            key: ValueKey(sliderKey),
-            value: value,
-            min: min,
-            max: max,
-            divisions: divisions,
-            onChanged: onChanged,
-          ),
+        Slider(
+          key: ValueKey(sliderKey),
+          value: value,
+          min: min,
+          max: max,
+          divisions: divisions,
+          onChanged: onChanged,
         ),
       ],
     );
@@ -546,11 +473,9 @@ class _CollageSetupScreenState extends ConsumerState<CollageSetupScreen> {
   Widget _buildSectionTitle(String title) {
     return Text(
       title,
-      style: const TextStyle(
-        color: Colors.white,
-        fontSize: 15.0,
-        fontWeight: FontWeight.bold,
-      ),
+      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
     );
   }
 }
