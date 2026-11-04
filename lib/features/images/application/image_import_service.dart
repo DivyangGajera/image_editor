@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:image_cropper/image_cropper.dart';
+import 'package:image_editor/core/theme/app_theme.dart';
 import 'package:image_editor/features/canvas/data/project_repository.dart';
 import 'package:image_editor/features/images/application/image_normalizer.dart';
 import 'package:image_editor/features/layers/application/layer_placement.dart';
@@ -40,10 +41,14 @@ class ImportedPhoto {
     required this.relativePath,
     required this.width,
     required this.height,
+    required this.originalPath,
   });
 
-  /// Project-relative path of the saved image.
+  /// Project-relative path of the saved (cropped) image.
   final String relativePath;
+
+  /// Project-relative path of the uncropped original it was cut from.
+  final String originalPath;
 
   /// Pixel size after normalization.
   final int width;
@@ -79,12 +84,12 @@ class ImageImportService {
     CropAspectRatioPreset.ratio16x9,
   ];
 
-  /// Picks an image from [source], lets the user crop it with preset ratios,
-  /// normalizes it off the UI isolate (upright, at most
-  /// [ImageNormalizer.maxDimension] px) and saves it into the sandbox of
-  /// [projectId].
+  /// Picks an image from [source], saves its upright, size-limited original
+  /// into the sandbox of [projectId], lets the user crop it with preset ratios
+  /// and saves the crop as well.
   ///
-  /// Returns `null` when the user cancels picking or cropping.
+  /// The original is kept so the crop can be redone or reset later. Returns
+  /// `null` (leaving no files behind) when the user cancels picking or cropping.
   Future<ImportedPhoto?> importPhoto({
     required ImageSource source,
     required String projectId,
@@ -92,42 +97,63 @@ class ImageImportService {
     final pickedFile = await _picker.pickImage(source: source);
     if (pickedFile == null) return null;
 
+    final original = await _normalize(await pickedFile.readAsBytes());
+    final originalPath = await projectRepository.saveLayerImage(
+      projectId,
+      original.bytes,
+      'orig_${const Uuid().v4()}.${original.extension}',
+    );
+
+    final cropped = await recrop(projectId: projectId, originalPath: originalPath);
+    if (cropped == null) {
+      await projectRepository.deleteFile(originalPath);
+    }
+    return cropped;
+  }
+
+  /// Opens the cropper on the saved original at [originalPath] and saves the
+  /// result as a new image in [projectId]. Returns `null` if cancelled.
+  Future<ImportedPhoto?> recrop({
+    required String projectId,
+    required String originalPath,
+  }) async {
+    final originalFile = await projectRepository.resolveRelativePath(originalPath);
     final croppedFile = await _cropper.cropImage(
-      sourcePath: pickedFile.path,
+      sourcePath: originalFile.path,
       uiSettings: [
         AndroidUiSettings(
-          toolbarTitle: 'Crop Image',
-          toolbarColor: const Color(0xFF161622),
-          toolbarWidgetColor: const Color(0xFFFFFFFF),
-          backgroundColor: const Color(0xFF161622),
-          activeControlsWidgetColor: const Color(0xFF4E95FF),
+          toolbarTitle: 'Crop',
+          toolbarColor: const Color(0xFFFFFFFF),
+          toolbarWidgetColor: const Color(0xFF1B1B21),
+          statusBarLight: true,
+          backgroundColor: const Color(0xFF1B1B21),
+          activeControlsWidgetColor: AppTheme.brandSeed,
           initAspectRatio: CropAspectRatioPreset.original,
           lockAspectRatio: false,
           aspectRatioPresets: defaultAspectRatioPresets,
         ),
         IOSUiSettings(
-          title: 'Crop Image',
+          title: 'Crop',
           aspectRatioLockEnabled: false,
           resetAspectRatioEnabled: true,
           aspectRatioPresets: defaultAspectRatioPresets,
         ),
       ],
     );
-
     if (croppedFile == null) return null;
 
     final normalized = await _normalize(await croppedFile.readAsBytes());
-    final filename = 'img_${const Uuid().v4()}.${normalized.extension}';
     final relativePath = await projectRepository.saveLayerImage(
       projectId,
       normalized.bytes,
-      filename,
+      'img_${const Uuid().v4()}.${normalized.extension}',
     );
 
     return ImportedPhoto(
       relativePath: relativePath,
       width: normalized.width,
       height: normalized.height,
+      originalPath: originalPath,
     );
   }
 
@@ -149,6 +175,7 @@ class ImageImportService {
       y: defaultY,
       scale: LayerPlacement.fitScale(contentSize: photo.size, canvasSize: canvasSize),
       relativeImagePath: photo.relativePath,
+      originalImagePath: photo.originalPath,
     );
   }
 }

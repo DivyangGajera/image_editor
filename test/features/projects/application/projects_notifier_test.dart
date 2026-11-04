@@ -103,6 +103,7 @@ void main() {
             'projects/${invocation.namedArguments[#projectId]}/images/photo.jpg',
         width: 2048,
         height: 1536,
+        originalPath: 'projects/${invocation.namedArguments[#projectId]}/images/orig.jpg',
       ),
     );
 
@@ -114,6 +115,7 @@ void main() {
     final layer = project.layers.single as ImageLayer;
     expect(layer.scale, closeTo(1440 / 2048, 1e-9));
     expect(layer.relativeImagePath, 'projects/${project.id}/images/photo.jpg');
+    expect(layer.originalImagePath, 'projects/${project.id}/images/orig.jpg');
     expect((await projects()).single.id, project.id);
   });
 

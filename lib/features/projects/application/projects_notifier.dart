@@ -77,6 +77,7 @@ class ProjectsNotifier extends _$ProjectsNotifier {
           y: 0.5,
           scale: canvasSize.width / photo.width,
           relativeImagePath: photo.relativePath,
+          originalImagePath: photo.originalPath,
         ),
       ],
     );

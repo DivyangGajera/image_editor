@@ -27,7 +27,7 @@ class ImageLayerAdapter extends TypeAdapter<ImageLayer> {
       relativeImagePath: fields[7] as String,
       isFlippedHorizontally: fields[8] == null ? false : fields[8] as bool,
       activeFilter: fields[9] as String?,
-      cropRect: (fields[10] as List?)?.cast<double>(),
+      originalImagePath: fields[11] as String?,
     );
   }
 
@@ -55,8 +55,8 @@ class ImageLayerAdapter extends TypeAdapter<ImageLayer> {
       ..write(obj.isFlippedHorizontally)
       ..writeByte(9)
       ..write(obj.activeFilter)
-      ..writeByte(10)
-      ..write(obj.cropRect);
+      ..writeByte(11)
+      ..write(obj.originalImagePath);
   }
 
   @override

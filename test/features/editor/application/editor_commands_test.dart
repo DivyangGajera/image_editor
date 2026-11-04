@@ -194,6 +194,73 @@ void main() {
         ));
   });
 
+  group('cropping', () {
+    const cropped = ImageLayer(
+      id: 'photo',
+      x: 0.4,
+      y: 0.6,
+      scale: 0.5,
+      rotation: 0.3,
+      activeFilter: 'grayscale',
+      relativeImagePath: 'projects/editor-commands/images/img_1.jpg',
+      originalImagePath: 'projects/editor-commands/images/orig_1.jpg',
+    );
+
+    setUp(() async {
+      await container.read(canvasProvider(projectId).notifier).addLayer(cropped);
+    });
+
+    test('cropImage re-crops from the original and keeps the transform and filter',
+        () async {
+      when(() => imageImport.recrop(
+            projectId: any(named: 'projectId'),
+            originalPath: any(named: 'originalPath'),
+          )).thenAnswer(
+        (_) async => const ImportedPhoto(
+          relativePath: 'projects/editor-commands/images/img_2.jpg',
+          width: 300,
+          height: 200,
+          originalPath: 'projects/editor-commands/images/orig_1.jpg',
+        ),
+      );
+
+      expect(await commands.cropImage('photo'), isTrue);
+
+      verify(() => imageImport.recrop(
+            projectId: projectId,
+            originalPath: 'projects/editor-commands/images/orig_1.jpg',
+          )).called(1);
+      final layer = layers().single as ImageLayer;
+      expect(layer.relativeImagePath, 'projects/editor-commands/images/img_2.jpg');
+      expect(layer.originalImagePath, 'projects/editor-commands/images/orig_1.jpg');
+      expect(layer.x, 0.4);
+      expect(layer.scale, 0.5);
+      expect(layer.rotation, 0.3);
+      expect(layer.activeFilter, 'grayscale');
+    });
+
+    test('cropImage leaves the layer alone when the user cancels', () async {
+      when(() => imageImport.recrop(
+            projectId: any(named: 'projectId'),
+            originalPath: any(named: 'originalPath'),
+          )).thenAnswer((_) async => null);
+
+      expect(await commands.cropImage('photo'), isFalse);
+      expect(layers().single, cropped.copyWith(zIndex: 0));
+    });
+
+    test('resetCrop restores the original and can be undone', () async {
+      await commands.resetCrop('photo');
+
+      final layer = layers().single as ImageLayer;
+      expect(layer.relativeImagePath, 'projects/editor-commands/images/orig_1.jpg');
+      expect(layer.isCropped, isFalse);
+
+      await container.read(canvasProvider(projectId).notifier).undo();
+      expect((layers().single as ImageLayer).isCropped, isTrue);
+    });
+  });
+
   group('EditorUiNotifier', () {
     test('switches modes and clamps the brush width', () {
       final provider = editorUiProvider(projectId);

@@ -123,6 +123,8 @@ class LayerContextBar extends StatelessWidget {
     required this.onFlip,
     required this.onRemoveBackground,
     required this.onEditText,
+    required this.onCrop,
+    required this.onResetCrop,
   });
 
   final CanvasLayer layer;
@@ -141,6 +143,8 @@ class LayerContextBar extends StatelessWidget {
   final VoidCallback onFlip;
   final VoidCallback onRemoveBackground;
   final VoidCallback onEditText;
+  final VoidCallback onCrop;
+  final VoidCallback onResetCrop;
 
   @override
   Widget build(BuildContext context) {
@@ -154,6 +158,19 @@ class LayerContextBar extends StatelessWidget {
           isActive: isFilterStripOpen,
           onPressed: onToggleFilters,
         ),
+        ToolButton(
+          key: const ValueKey('ctx_crop'),
+          icon: Icons.crop_rounded,
+          label: 'Crop',
+          onPressed: onCrop,
+        ),
+        if (current.isCropped)
+          ToolButton(
+            key: const ValueKey('ctx_reset_crop'),
+            icon: Icons.crop_free_rounded,
+            label: 'Uncrop',
+            onPressed: onResetCrop,
+          ),
         ToolButton(
           key: const ValueKey('ctx_flip'),
           icon: Icons.flip_rounded,

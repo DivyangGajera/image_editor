@@ -85,9 +85,10 @@ void main() {
       verifyZeroInteractions(mockCropper);
     });
 
-    test('returns null when user cancels image cropper', () async {
+    test('returns null and deletes the saved original when the user cancels cropping',
+        () async {
       final samplePicked = File('${tempDir.path}/picked_raw.png');
-      await samplePicked.writeAsBytes(Uint8List.fromList([1, 2, 3]));
+      await samplePicked.writeAsBytes(img.encodePng(img.Image(width: 40, height: 30)));
 
       when(() => mockPicker.pickImage(source: ImageSource.camera))
           .thenAnswer((_) async => XFile(samplePicked.path));
@@ -104,15 +105,22 @@ void main() {
 
       expect(result, isNull);
       verify(() => mockPicker.pickImage(source: ImageSource.camera)).called(1);
-      verify(() => mockCropper.cropImage(
-            sourcePath: samplePicked.path,
+      final croppedFrom = verify(() => mockCropper.cropImage(
+            sourcePath: captureAny(named: 'sourcePath'),
             uiSettings: any(named: 'uiSettings'),
-          )).called(1);
+          )).captured.single as String;
+      expect(croppedFrom, contains('/projects/test-proj/images/orig_'));
+      final imagesDir = Directory('${tempDir.path}/projects/test-proj/images');
+      expect(
+        imagesDir.existsSync() ? imagesDir.listSync() : const <FileSystemEntity>[],
+        isEmpty,
+        reason: 'a cancelled import must not leave files behind',
+      );
     });
 
     Future<void> stubPickAndCrop(Uint8List croppedBytes) async {
       final samplePicked = File('${tempDir.path}/picked_raw.jpg');
-      await samplePicked.writeAsBytes(<int>[10, 20, 30]);
+      await samplePicked.writeAsBytes(img.encodeJpg(img.Image(width: 64, height: 48)));
       final sampleCropped = File('${tempDir.path}/cropped_output');
       await sampleCropped.writeAsBytes(croppedBytes);
 
@@ -166,6 +174,8 @@ void main() {
       expect(imported.width, 2048);
       expect(imported.height, 1024);
       expect(imported.size, const Size(2048, 1024));
+      expect(imported.originalPath, startsWith('projects/test-proj/images/orig_'));
+      expect((await projectRepository.resolveRelativePath(imported.originalPath)).existsSync(), isTrue);
     });
 
     test('keeps transparency as PNG and never enlarges small images', () async {
@@ -181,6 +191,43 @@ void main() {
 
       expect(layer!.relativeImagePath, endsWith('.png'));
       expect(layer.scale, 1.0);
+    });
+
+    test('pickAndCropImage records the original for later re-cropping', () async {
+      await stubPickAndCrop(Uint8List.fromList(img.encodePng(img.Image(width: 20, height: 20))));
+
+      final layer = await service.pickAndCropImage(
+        source: ImageSource.gallery,
+        projectId: 'test-proj',
+        canvasSize: canvasSize,
+      );
+
+      expect(layer!.originalImagePath, startsWith('projects/test-proj/images/orig_'));
+      expect(layer.isCropped, isTrue);
+    });
+
+    test('recrop crops from the given original and keeps pointing at it', () async {
+      final originalPath = await projectRepository.saveLayerImage(
+        'test-proj',
+        Uint8List.fromList(img.encodePng(img.Image(width: 100, height: 100))),
+        'orig_existing.png',
+      );
+      final cropped = File('${tempDir.path}/recropped');
+      await cropped.writeAsBytes(img.encodePng(img.Image(width: 50, height: 40)));
+      when(() => mockCropper.cropImage(
+            sourcePath: any(named: 'sourcePath'),
+            uiSettings: any(named: 'uiSettings'),
+          )).thenAnswer((_) async => CroppedFile(cropped.path));
+
+      final result = await service.recrop(projectId: 'test-proj', originalPath: originalPath);
+
+      expect(result!.originalPath, originalPath);
+      expect(result.width, 50);
+      expect(result.height, 40);
+      verify(() => mockCropper.cropImage(
+            sourcePath: '${tempDir.path}/$originalPath',
+            uiSettings: any(named: 'uiSettings'),
+          )).called(1);
     });
 
     test('imageImportServiceProvider provides functional service', () {
