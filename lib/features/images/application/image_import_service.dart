@@ -1,6 +1,10 @@
+import 'dart:typed_data';
 import 'dart:ui';
+
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_editor/features/canvas/data/project_repository.dart';
+import 'package:image_editor/features/images/application/image_normalizer.dart';
+import 'package:image_editor/features/layers/application/layer_placement.dart';
 import 'package:image_editor/features/layers/domain/models/image_layer.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -36,12 +40,15 @@ class ImageImportService {
   ImageImportService({
     ImagePicker? picker,
     ImageCropper? cropper,
+    Future<NormalizedImage> Function(Uint8List bytes)? normalizer,
     required this.projectRepository,
   })  : _picker = picker ?? ImagePicker(),
-        _cropper = cropper ?? ImageCropper();
+        _cropper = cropper ?? ImageCropper(),
+        _normalize = normalizer ?? ImageNormalizer.normalizeInBackground;
 
   final ImagePicker _picker;
   final ImageCropper _cropper;
+  final Future<NormalizedImage> Function(Uint8List bytes) _normalize;
   final ProjectRepository projectRepository;
 
   /// Preset aspect ratios supported by the cropping workflow:
@@ -54,11 +61,16 @@ class ImageImportService {
     CropAspectRatioPreset.ratio16x9,
   ];
 
-  /// Picks an image from [source], allows the user to crop it with preset ratios,
-  /// saves the resulting bytes into the project sandbox, and returns a new [ImageLayer].
+  /// Picks an image from [source], lets the user crop it with preset ratios,
+  /// normalizes it off the UI isolate (upright, at most
+  /// [ImageNormalizer.maxDimension] px), saves it into the project sandbox and
+  /// returns a new [ImageLayer] scaled to fit [canvasSize].
+  ///
+  /// Returns `null` when the user cancels picking or cropping.
   Future<ImageLayer?> pickAndCropImage({
     required ImageSource source,
     required String projectId,
+    required Size canvasSize,
     double defaultX = 0.5,
     double defaultY = 0.5,
   }) async {
@@ -89,18 +101,25 @@ class ImageImportService {
 
     if (croppedFile == null) return null;
 
-    final bytes = await croppedFile.readAsBytes();
-    final filename = 'img_${const Uuid().v4()}.png';
-    final relativePath = await projectRepository.saveLayerImage(projectId, bytes, filename);
+    final normalized = await _normalize(await croppedFile.readAsBytes());
+    final filename = 'img_${const Uuid().v4()}.${normalized.extension}';
+    final relativePath = await projectRepository.saveLayerImage(
+      projectId,
+      normalized.bytes,
+      filename,
+    );
 
     return ImageLayer(
       id: const Uuid().v4(),
       x: defaultX,
       y: defaultY,
-      scale: 1.0,
-      rotation: 0.0,
-      zIndex: 0,
-      isVisible: true,
+      scale: LayerPlacement.fitScale(
+        contentSize: Size(
+          normalized.width.toDouble(),
+          normalized.height.toDouble(),
+        ),
+        canvasSize: canvasSize,
+      ),
       relativeImagePath: relativePath,
     );
   }

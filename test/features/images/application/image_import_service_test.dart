@@ -1,14 +1,17 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/painting.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
+import 'package:image/image.dart' as img;
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_editor/core/storage/storage_keys.dart';
 import 'package:image_editor/features/canvas/data/project_repository.dart';
 import 'package:image_editor/features/canvas/domain/models/models.dart';
 import 'package:image_editor/features/images/application/image_import_service.dart';
+import 'package:image_editor/features/images/application/image_normalizer.dart';
 import 'package:image_editor/features/layers/domain/models/models.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mocktail/mocktail.dart';
@@ -25,6 +28,7 @@ void main() {
     late MockImagePicker mockPicker;
     late MockImageCropper mockCropper;
     late ImageImportService service;
+    const canvasSize = Size(1080, 1350);
 
     setUpAll(() {
       if (!Hive.isAdapterRegistered(0)) Hive.registerAdapter(ImageLayerAdapter());
@@ -50,6 +54,8 @@ void main() {
       service = ImageImportService(
         picker: mockPicker,
         cropper: mockCropper,
+        // Synchronous normalization: tests must not spawn isolates.
+        normalizer: (bytes) async => ImageNormalizer.normalize(bytes),
         projectRepository: projectRepository,
       );
     });
@@ -71,6 +77,7 @@ void main() {
       final result = await service.pickAndCropImage(
         source: ImageSource.gallery,
         projectId: 'test-proj',
+        canvasSize: canvasSize,
       );
 
       expect(result, isNull);
@@ -92,6 +99,7 @@ void main() {
       final result = await service.pickAndCropImage(
         source: ImageSource.camera,
         projectId: 'test-proj',
+        canvasSize: canvasSize,
       );
 
       expect(result, isNull);
@@ -102,12 +110,11 @@ void main() {
           )).called(1);
     });
 
-    test('successfully picks, crops, saves to sandbox, and returns ImageLayer', () async {
-      final samplePicked = File('${tempDir.path}/picked_raw.png');
-      await samplePicked.writeAsBytes(Uint8List.fromList([10, 20, 30]));
-
-      final sampleCropped = File('${tempDir.path}/cropped_output.png');
-      await sampleCropped.writeAsBytes(Uint8List.fromList([100, 200, 255]));
+    Future<void> stubPickAndCrop(Uint8List croppedBytes) async {
+      final samplePicked = File('${tempDir.path}/picked_raw.jpg');
+      await samplePicked.writeAsBytes(<int>[10, 20, 30]);
+      final sampleCropped = File('${tempDir.path}/cropped_output');
+      await sampleCropped.writeAsBytes(croppedBytes);
 
       when(() => mockPicker.pickImage(source: ImageSource.gallery))
           .thenAnswer((_) async => XFile(samplePicked.path));
@@ -115,28 +122,49 @@ void main() {
             sourcePath: any(named: 'sourcePath'),
             uiSettings: any(named: 'uiSettings'),
           )).thenAnswer((_) async => CroppedFile(sampleCropped.path));
+    }
+
+    test('saves a normalized opaque photo as JPEG and fits it to 70% of the canvas',
+        () async {
+      // 4000x2000 opaque photo -> downscaled to 2048x1024.
+      final photo = img.Image(width: 4000, height: 2000)
+        ..clear(img.ColorRgb8(200, 120, 40));
+      await stubPickAndCrop(Uint8List.fromList(img.encodeJpg(photo)));
 
       final layer = await service.pickAndCropImage(
         source: ImageSource.gallery,
         projectId: 'test-proj',
+        canvasSize: canvasSize,
       );
 
       expect(layer, isNotNull);
-      expect(layer!.id, isNotEmpty);
-      expect(layer.x, equals(0.5));
-      expect(layer.y, equals(0.5));
-      expect(layer.scale, equals(1.0));
-      expect(layer.rotation, equals(0.0));
-      expect(layer.isVisible, isTrue);
-      expect(layer.isFlippedHorizontally, isFalse);
-      expect(layer.activeFilter, isNull);
+      expect(layer!.x, 0.5);
+      expect(layer.y, 0.5);
+      expect(layer.rotation, 0.0);
       expect(layer.relativeImagePath, startsWith('projects/test-proj/images/img_'));
-      expect(layer.relativeImagePath, endsWith('.png'));
+      expect(layer.relativeImagePath, endsWith('.jpg'));
+      // Width-limited: 1080 * 0.7 / 2048.
+      expect(layer.scale, closeTo(1080 * 0.7 / 2048, 1e-9));
 
-      // Verify the file was persisted to disk in sandbox
-      final savedFile = await projectRepository.resolveRelativePath(layer.relativeImagePath);
-      expect(savedFile.existsSync(), isTrue);
-      expect(await savedFile.readAsBytes(), equals([100, 200, 255]));
+      final saved = await projectRepository.resolveRelativePath(layer.relativeImagePath);
+      final decoded = img.decodeImage(await saved.readAsBytes())!;
+      expect(decoded.width, ImageNormalizer.maxDimension);
+      expect(decoded.height, 1024);
+    });
+
+    test('keeps transparency as PNG and never enlarges small images', () async {
+      final sticker = img.Image(width: 200, height: 100, numChannels: 4)
+        ..clear(img.ColorRgba8(0, 0, 0, 0));
+      await stubPickAndCrop(Uint8List.fromList(img.encodePng(sticker)));
+
+      final layer = await service.pickAndCropImage(
+        source: ImageSource.gallery,
+        projectId: 'test-proj',
+        canvasSize: canvasSize,
+      );
+
+      expect(layer!.relativeImagePath, endsWith('.png'));
+      expect(layer.scale, 1.0);
     });
 
     test('imageImportServiceProvider provides functional service', () {
