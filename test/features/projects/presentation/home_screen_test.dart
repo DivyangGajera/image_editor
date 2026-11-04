@@ -10,6 +10,8 @@ import 'package:image_editor/core/theme/app_theme.dart';
 import 'package:image_editor/features/canvas/canvas.dart';
 import 'package:image_editor/features/projects/projects.dart';
 
+import '../../../helpers/pump_until.dart';
+
 void main() {
   late Directory tempDir;
   late ProjectRepository repository;
@@ -74,16 +76,6 @@ void main() {
 
   Future<List<ProjectModel>> savedProjects() => repository.getAllProjects();
 
-  /// Pumps, letting real I/O run, until [condition] holds (max 10 s), so slow
-  /// work like thumbnail rendering under a loaded test run cannot race.
-  Future<void> pumpUntil(WidgetTester tester, bool Function() condition) async {
-    for (var i = 0; i < 200 && !condition(); i++) {
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
-      await tester.pump();
-    }
-    await tester.pumpAndSettle();
-    expect(condition(), isTrue, reason: 'condition not reached in time');
-  }
 
   testWidgets('fresh install shows the empty state and no floating button', (tester) async {
     await tester.runAsync(() => setUpStorage(const []));
