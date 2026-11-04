@@ -144,6 +144,29 @@ class CanvasNotifier extends _$CanvasNotifier {
     );
   }
 
+  /// Shows [after] immediately, then records [before] as one undo step and
+  /// persists [after].
+  ///
+  /// State is updated synchronously so rapid successive edits always build on
+  /// the latest layers. Dependencies are captured before awaiting, so an edit
+  /// is still saved if the editor closes (and this notifier is disposed) while
+  /// history is being written.
+  Future<void> _commit({
+    required List<CanvasLayer> before,
+    required ProjectModel after,
+    String? Function()? selectedLayerId,
+  }) async {
+    final history = _historyNotifier;
+    final repository = _projectRepository;
+    _current = _current.copyWith(project: after, selectedLayerId: selectedLayerId);
+    await history.pushState(before);
+    await repository.saveProject(after);
+  }
+
+  ProjectModel _withLayers(List<CanvasLayer> layers) {
+    return _current.project.copyWith(layers: layers, updatedAt: DateTime.now());
+  }
+
   /// Ends the current gesture: records a single undo step with the
   /// pre-gesture layers and persists the project once, if anything changed.
   Future<void> commitInteraction() async {
@@ -155,34 +178,24 @@ class CanvasNotifier extends _$CanvasNotifier {
       return;
     }
 
-    await _historyNotifier.pushState(snapshot);
-    final updatedProject = _current.project.copyWith(updatedAt: DateTime.now());
-    _current = _current.copyWith(project: updatedProject);
-    await _projectRepository.saveProject(updatedProject);
+    await _commit(
+      before: snapshot,
+      after: _current.project.copyWith(updatedAt: DateTime.now()),
+    );
   }
 
   /// Appends [layer] on top of the canvas, assigning it the top stacking
   /// zIndex, recording history and persisting. The new layer is selected
   /// unless [select] is false (e.g. strokes added while drawing).
   Future<void> addLayer(CanvasLayer layer, {bool select = true}) async {
-    // Record current state before mutating
-    await _historyNotifier.pushState(_current.project.layers);
+    final before = _current.project.layers;
+    final indexedLayer = layer.copyWith(zIndex: before.length);
 
-    final updatedLayers = List<CanvasLayer>.from(_current.project.layers);
-    final indexedLayer = layer.copyWith(zIndex: updatedLayers.length);
-    updatedLayers.add(indexedLayer);
-
-    final updatedProject = _current.project.copyWith(
-      layers: updatedLayers,
-      updatedAt: DateTime.now(),
-    );
-
-    _current = _current.copyWith(
-      project: updatedProject,
+    await _commit(
+      before: before,
+      after: _withLayers([...before, indexedLayer]),
       selectedLayerId: select ? () => indexedLayer.id : null,
     );
-
-    await _projectRepository.saveProject(updatedProject);
   }
 
   /// Updates transformation parameters (`x`, `y`, `scale`, `rotation`) for layer with [id].
@@ -193,72 +206,39 @@ class CanvasNotifier extends _$CanvasNotifier {
     double? scale,
     double? rotation,
   }) async {
-    final index = _current.project.layers.indexWhere((l) => l.id == id);
+    final before = _current.project.layers;
+    final index = before.indexWhere((l) => l.id == id);
     if (index == -1) return;
 
-    await _historyNotifier.pushState(_current.project.layers);
-
-    final updatedLayers = List<CanvasLayer>.from(_current.project.layers);
-    updatedLayers[index] = updatedLayers[index].copyWith(
-      x: x,
-      y: y,
-      scale: scale,
-      rotation: rotation,
-    );
-
-    final updatedProject = _current.project.copyWith(
-      layers: updatedLayers,
-      updatedAt: DateTime.now(),
-    );
-
-    _current = _current.copyWith(project: updatedProject);
-    await _projectRepository.saveProject(updatedProject);
+    final updated = List<CanvasLayer>.from(before)
+      ..[index] = before[index].copyWith(x: x, y: y, scale: scale, rotation: rotation);
+    await _commit(before: before, after: _withLayers(updated));
   }
 
   /// Replaces an existing layer with [layer], records history, and persists updates.
   Future<void> updateLayer(CanvasLayer layer) async {
-    final index = _current.project.layers.indexWhere((l) => l.id == layer.id);
+    final before = _current.project.layers;
+    final index = before.indexWhere((l) => l.id == layer.id);
     if (index == -1) return;
 
-    await _historyNotifier.pushState(_current.project.layers);
-
-    final updatedLayers = List<CanvasLayer>.from(_current.project.layers);
-    updatedLayers[index] = layer;
-
-    final updatedProject = _current.project.copyWith(
-      layers: updatedLayers,
-      updatedAt: DateTime.now(),
-    );
-
-    _current = _current.copyWith(project: updatedProject);
-    await _projectRepository.saveProject(updatedProject);
+    final updated = List<CanvasLayer>.from(before)..[index] = layer;
+    await _commit(before: before, after: _withLayers(updated));
   }
 
   /// Reorders layer from [oldIndex] to [newIndex] and recalculates sequential zIndices.
   Future<void> reorderLayer(int oldIndex, int newIndex) async {
-    final layers = _current.project.layers;
+    final before = _current.project.layers;
     if (oldIndex < 0 ||
-        oldIndex >= layers.length ||
+        oldIndex >= before.length ||
         newIndex < 0 ||
-        newIndex >= layers.length ||
+        newIndex >= before.length ||
         oldIndex == newIndex) {
       return;
     }
 
-    await _historyNotifier.pushState(layers);
-
-    final updatedList = List<CanvasLayer>.from(layers);
-    final movedItem = updatedList.removeAt(oldIndex);
-    updatedList.insert(newIndex, movedItem);
-
-    final reIndexed = _reIndexLayers(updatedList);
-    final updatedProject = _current.project.copyWith(
-      layers: reIndexed,
-      updatedAt: DateTime.now(),
-    );
-
-    _current = _current.copyWith(project: updatedProject);
-    await _projectRepository.saveProject(updatedProject);
+    final updated = List<CanvasLayer>.from(before);
+    updated.insert(newIndex, updated.removeAt(oldIndex));
+    await _commit(before: before, after: _withLayers(_reIndexLayers(updated)));
   }
 
   /// Brings layer [id] to the front of the canvas (highest stacking zIndex).
@@ -279,25 +259,16 @@ class CanvasNotifier extends _$CanvasNotifier {
 
   /// Deletes layer [id], resets selection if deleted, and re-indexes remaining layers.
   Future<void> deleteLayer(String id) async {
-    final index = _current.project.layers.indexWhere((l) => l.id == id);
+    final before = _current.project.layers;
+    final index = before.indexWhere((l) => l.id == id);
     if (index == -1) return;
 
-    await _historyNotifier.pushState(_current.project.layers);
-
-    final updatedList = List<CanvasLayer>.from(_current.project.layers)..removeAt(index);
-    final reIndexed = _reIndexLayers(updatedList);
-
-    final updatedProject = _current.project.copyWith(
-      layers: reIndexed,
-      updatedAt: DateTime.now(),
-    );
-
-    _current = _current.copyWith(
-      project: updatedProject,
+    final updated = List<CanvasLayer>.from(before)..removeAt(index);
+    await _commit(
+      before: before,
+      after: _withLayers(_reIndexLayers(updated)),
       selectedLayerId: _current.selectedLayerId == id ? () => null : null,
     );
-
-    await _projectRepository.saveProject(updatedProject);
   }
 
   /// Normalized offset applied to a duplicate so it does not hide the original.
@@ -306,55 +277,41 @@ class CanvasNotifier extends _$CanvasNotifier {
   /// Duplicates layer [id] directly above the original, slightly offset,
   /// selects the copy, records history and persists. Returns the copy's ID.
   Future<String?> duplicateLayer(String id) async {
-    final layers = _current.project.layers;
-    final index = layers.indexWhere((l) => l.id == id);
+    final before = _current.project.layers;
+    final index = before.indexWhere((l) => l.id == id);
     if (index == -1) return null;
 
-    await _historyNotifier.pushState(layers);
-
-    final original = layers[index];
+    final original = before[index];
     final copy = original.copyWith(
       id: const Uuid().v4(),
       x: (original.x + duplicateOffset).clamp(-0.5, 1.5),
       y: (original.y + duplicateOffset).clamp(-0.5, 1.5),
     );
-    final updatedList = List<CanvasLayer>.from(layers)..insert(index + 1, copy);
-    final updatedProject = _current.project.copyWith(
-      layers: _reIndexLayers(updatedList),
-      updatedAt: DateTime.now(),
-    );
-
-    _current = _current.copyWith(
-      project: updatedProject,
+    final updated = List<CanvasLayer>.from(before)..insert(index + 1, copy);
+    await _commit(
+      before: before,
+      after: _withLayers(_reIndexLayers(updated)),
       selectedLayerId: () => copy.id,
     );
-    await _projectRepository.saveProject(updatedProject);
     return copy.id;
   }
 
   /// Shows or hides layer [id]. Hidden layers are neither rendered nor exported
   /// and are deselected; they remain listed in the layers panel.
   Future<void> toggleVisibility(String id) async {
-    final layers = _current.project.layers;
-    final index = layers.indexWhere((l) => l.id == id);
+    final before = _current.project.layers;
+    final index = before.indexWhere((l) => l.id == id);
     if (index == -1) return;
 
-    await _historyNotifier.pushState(layers);
-
-    final toggled = layers[index].copyWith(isVisible: !layers[index].isVisible);
-    final updatedList = List<CanvasLayer>.from(layers)..[index] = toggled;
-    final updatedProject = _current.project.copyWith(
-      layers: updatedList,
-      updatedAt: DateTime.now(),
-    );
-
-    _current = _current.copyWith(
-      project: updatedProject,
+    final toggled = before[index].copyWith(isVisible: !before[index].isVisible);
+    final updated = List<CanvasLayer>.from(before)..[index] = toggled;
+    await _commit(
+      before: before,
+      after: _withLayers(updated),
       selectedLayerId: !toggled.isVisible && _current.selectedLayerId == id
           ? () => null
           : null,
     );
-    await _projectRepository.saveProject(updatedProject);
   }
 
   /// Places [cutout] directly above the image layer [sourceId] with the same
@@ -363,13 +320,11 @@ class CanvasNotifier extends _$CanvasNotifier {
   /// One undo step restores the original image. Does nothing if the source
   /// no longer exists.
   Future<void> applyCutout(String sourceId, ImageLayer cutout) async {
-    final layers = _current.project.layers;
-    final index = layers.indexWhere((l) => l.id == sourceId);
+    final before = _current.project.layers;
+    final index = before.indexWhere((l) => l.id == sourceId);
     if (index == -1) return;
 
-    await _historyNotifier.pushState(layers);
-
-    final source = layers[index];
+    final source = before[index];
     final placed = cutout.copyWith(
       x: source.x,
       y: source.y,
@@ -378,59 +333,42 @@ class CanvasNotifier extends _$CanvasNotifier {
       isFlippedHorizontally:
           source is ImageLayer ? source.isFlippedHorizontally : null,
     );
-    final updatedList = List<CanvasLayer>.from(layers)
+    final updated = List<CanvasLayer>.from(before)
       ..[index] = source.copyWith(isVisible: false)
       ..insert(index + 1, placed);
-    final updatedProject = _current.project.copyWith(
-      layers: _reIndexLayers(updatedList),
-      updatedAt: DateTime.now(),
-    );
-
-    _current = _current.copyWith(
-      project: updatedProject,
+    await _commit(
+      before: before,
+      after: _withLayers(_reIndexLayers(updated)),
       selectedLayerId: () => placed.id,
     );
-    await _projectRepository.saveProject(updatedProject);
   }
 
   /// Reverts to the previous state recorded in the [HistoryNotifier].
-  Future<void> undo() async {
-    final previousLayers = await _historyNotifier.undo(_current.project.layers);
-    if (previousLayers != null) {
-      final updatedProject = _current.project.copyWith(
-        layers: previousLayers,
-        updatedAt: DateTime.now(),
-      );
-
-      _current = _current.copyWith(
-        project: updatedProject,
-        selectedLayerId: updatedProject.layers.any((l) => l.id == _current.selectedLayerId)
-            ? () => _current.selectedLayerId
-            : () => null,
-      );
-
-      await _projectRepository.saveProject(updatedProject);
-    }
-  }
+  Future<void> undo() => _travel(forward: false);
 
   /// Re-applies the forward state from the [HistoryNotifier].
-  Future<void> redo() async {
-    final nextLayers = await _historyNotifier.redo(_current.project.layers);
-    if (nextLayers != null) {
-      final updatedProject = _current.project.copyWith(
-        layers: nextLayers,
-        updatedAt: DateTime.now(),
-      );
+  Future<void> redo() => _travel(forward: true);
 
+  Future<void> _travel({required bool forward}) async {
+    final history = _historyNotifier;
+    final repository = _projectRepository;
+    final base = _current.project;
+
+    final layers = forward
+        ? await history.redo(base.layers)
+        : await history.undo(base.layers);
+    if (layers == null) return;
+
+    final restored = base.copyWith(layers: layers, updatedAt: DateTime.now());
+    if (ref.mounted) {
+      final selected = _current.selectedLayerId;
       _current = _current.copyWith(
-        project: updatedProject,
-        selectedLayerId: updatedProject.layers.any((l) => l.id == _current.selectedLayerId)
-            ? () => _current.selectedLayerId
-            : () => null,
+        project: restored,
+        selectedLayerId: layers.any((l) => l.id == selected) ? null : () => null,
       );
-
-      await _projectRepository.saveProject(updatedProject);
     }
+    // History already moved, so persist even if the editor has closed.
+    await repository.saveProject(restored);
   }
 
   /// Helper re-assigning sequential zIndex indices (0 to N-1) across layers.

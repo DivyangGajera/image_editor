@@ -360,6 +360,41 @@ void main() {
       expect(readState().project.layers.first.isVisible, isTrue);
     });
 
+    test('rapid edits fired without awaiting all apply and each records history', () async {
+      final notifier = container.read(canvasUnderTest.notifier);
+
+      await Future.wait([
+        notifier.addLayer(makeText('a', 'A')),
+        notifier.addLayer(makeText('b', 'B')),
+        notifier.addLayer(makeText('c', 'C')),
+      ]);
+
+      expect(readState().project.layers.map((l) => l.id), ['a', 'b', 'c']);
+      expect(container.read(historyProvider(initialProject.id)).totalUndoCount, 3);
+      final persisted = await projectRepository.loadProject(initialProject.id);
+      expect(persisted!.layers, hasLength(3));
+    });
+
+    test('an edit is still saved if the editor closes while history is writing', () async {
+      // A dedicated container that is torn down mid-edit, as when the editor
+      // screen closes and its auto-disposed providers go away.
+      final editor = ProviderContainer(
+        overrides: [
+          projectRepositoryProvider.overrideWithValue(projectRepository),
+          historyManagerProvider(initialProject.id).overrideWithValue(historyManager),
+        ],
+      );
+      editor.listen(canvasUnderTest, (_, _) {});
+      await editor.read(canvasUnderTest.future);
+
+      final pending = editor.read(canvasUnderTest.notifier).addLayer(makeText('late', 'Saved'));
+      editor.dispose();
+
+      await expectLater(pending, completes);
+      final persisted = await projectRepository.loadProject(initialProject.id);
+      expect(persisted!.layers.single.id, 'late');
+    });
+
     test('undo and redo revert and re-apply canvas layer states', () async {
       final notifier = container.read(canvasUnderTest.notifier);
       final l1 = makeText('l-1', 'First');
