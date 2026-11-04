@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:image_editor/core/storage/app_bootstrap.dart';
 import 'package:image_editor/core/storage/storage_keys.dart';
@@ -21,10 +20,7 @@ void main() {
 
   const projectId = 'editor-screen';
 
-  setUpAll(() {
-    AppBootstrap.registerAdapters();
-    GoogleFonts.config.allowRuntimeFetching = false;
-  });
+  setUpAll(AppBootstrap.registerAdapters);
 
   Future<void> createProject(List<CanvasLayer> layers) async {
     tempDir = await Directory.systemTemp.createTemp('editor_screen_test_');
