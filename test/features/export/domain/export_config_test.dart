@@ -7,7 +7,7 @@ void main() {
       const config = WatermarkConfig();
       expect(config.isEnabled, isFalse);
       expect(config.type, equals(WatermarkType.text));
-      expect(config.text, equals('Offline Image Editor'));
+      expect(config.text, equals('Chitred'));
       expect(config.logoAssetOrFilePath, isNull);
       expect(config.position, equals(WatermarkPosition.bottomRight));
       expect(config.opacity, equals(0.75));

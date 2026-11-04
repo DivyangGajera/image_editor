@@ -126,7 +126,7 @@ void main() {
 
       final textFieldFinder = find.byKey(const ValueKey('watermark_text_field'));
       expect(textFieldFinder, findsOneWidget);
-      expect(find.text('Offline Image Editor'), findsOneWidget);
+      expect(find.text('Chitred'), findsOneWidget);
 
       // Change watermark text
       await tester.enterText(textFieldFinder, 'Brand Watermark');

@@ -12,7 +12,7 @@ void main() {
   );
 }
 
-/// Root application widget for Offline Image Editor.
+/// Root application widget for Chitred.
 class OfflineImageEditorApp extends StatelessWidget {
   const OfflineImageEditorApp({super.key});
 

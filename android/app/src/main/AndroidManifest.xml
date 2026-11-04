@@ -15,7 +15,7 @@
         android:maxSdkVersion="28" />
 
     <application
-        android:label="image_editor"
+        android:label="Chitred"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
