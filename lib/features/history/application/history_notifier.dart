@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+import 'package:image_editor/core/utils/app_logger.dart';
 import 'package:image_editor/features/history/data/history_manager.dart';
 import 'package:image_editor/features/layers/domain/models/models.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -93,6 +96,25 @@ class HistoryNotifier extends _$HistoryNotifier {
   @override
   HistoryState build(String projectId) {
     _manager = ref.watch(historyManagerProvider(projectId));
+    if (!_manager.isLoaded) {
+      // Persisted history is read asynchronously; publish metrics once loaded.
+      unawaited(
+        _manager.load().then(
+          (_) {
+            if (ref.mounted) state = _computeState();
+          },
+          onError: (Object error, StackTrace stackTrace) {
+            // History stays empty; editing keeps working without undo.
+            AppLogger.error(
+              'Failed to load undo history for project $projectId',
+              tag: 'History',
+              error: error,
+              stackTrace: stackTrace,
+            );
+          },
+        ),
+      );
+    }
     return _computeState();
   }
 

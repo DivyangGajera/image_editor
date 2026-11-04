@@ -16,7 +16,7 @@ void main() {
   group('ImageEditingToolbar', () {
     late Directory tempDir;
     late Box<ProjectModel> testBox;
-    late Box<List<dynamic>> historyBox;
+    late LazyBox<List<dynamic>> historyBox;
     late HistoryManager historyManager;
     late ProjectRepository projectRepository;
     late ProjectModel testProject;
@@ -55,11 +55,14 @@ void main() {
         layers: [testLayer],
       );
 
-      historyBox = await Hive.openBox<List<dynamic>>('history_${testProject.id}');
+      historyBox = await Hive.openLazyBox<List<dynamic>>('history_${testProject.id}');
       historyManager = HistoryManager(
         projectId: testProject.id,
         historyBox: historyBox,
       );
+      // Read persisted history up front: real Hive I/O cannot complete inside
+      // the fake-async zone that widget tests run in.
+      await historyManager.load();
 
       projectRepository = ProjectRepository(
         getBaseDir: () async => tempDir,

@@ -9,7 +9,7 @@ import 'package:image_editor/features/layers/domain/models/models.dart';
 void main() {
   group('HistoryNotifier (500-Step Stress & Rapid Firing)', () {
     late Directory tempDir;
-    late Box<List<dynamic>> historyBox;
+    late LazyBox<List<dynamic>> historyBox;
     late HistoryManager historyManager;
     late ProviderContainer container;
     const testProjectId = 'proj-notifier-stress-1';
@@ -24,7 +24,7 @@ void main() {
     setUp(() async {
       tempDir = await Directory.systemTemp.createTemp('hive_notifier_test_');
       Hive.init(tempDir.path);
-      historyBox = await Hive.openBox<List<dynamic>>('history_$testProjectId');
+      historyBox = await Hive.openLazyBox<List<dynamic>>('history_$testProjectId');
 
       historyManager = HistoryManager(
         projectId: testProjectId,

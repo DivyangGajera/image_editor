@@ -13,7 +13,7 @@ void main() {
   group('CanvasView & TransformableBox Widget Tests', () {
     late Directory tempDir;
     late Box<ProjectModel> projectsBox;
-    late Box<List<dynamic>> historyBox;
+    late LazyBox<List<dynamic>> historyBox;
     late ProjectRepository projectRepository;
     late HistoryManager historyManager;
     final testDate = DateTime(2026, 10, 15, 14, 0);
@@ -56,7 +56,7 @@ void main() {
       tempDir = await Directory.systemTemp.createTemp('canvas_view_test_');
       Hive.init(tempDir.path);
       projectsBox = await Hive.openBox<ProjectModel>(StorageKeys.projectsBox);
-      historyBox = await Hive.openBox<List<dynamic>>('history_${project.id}');
+      historyBox = await Hive.openLazyBox<List<dynamic>>('history_${project.id}');
 
       projectRepository = ProjectRepository(
         getBaseDir: () async => tempDir,
@@ -67,6 +67,12 @@ void main() {
         projectId: project.id,
         historyBox: historyBox,
       );
+
+      // Read persisted history up front: real Hive I/O cannot complete inside
+
+      // the fake-async zone that widget tests run in.
+
+      await historyManager.load();
 
       await projectRepository.saveProject(project);
     });
