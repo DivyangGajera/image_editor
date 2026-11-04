@@ -180,6 +180,19 @@ void main() {
     expect((await projects()).first.id, older.id);
   });
 
+  test('work still running when the provider is disposed completes quietly', () async {
+    final project = await notifier().createBlank(canvasSize: CanvasFormat.square.size);
+
+    final pending = notifier().onProjectEdited(project.id);
+    container.dispose();
+
+    await expectLater(pending, completes);
+    // Recreate so tearDown can dispose a live container.
+    container = ProviderContainer(
+      overrides: [projectRepositoryProvider.overrideWithValue(repository)],
+    );
+  });
+
   test('thumbnail size keeps the canvas aspect ratio', () {
     expect(
       ProjectThumbnailService.thumbnailSize(const Size(1920, 1080)),

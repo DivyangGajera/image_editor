@@ -20,11 +20,19 @@ class ProjectsNotifier extends _$ProjectsNotifier {
   /// Title given to new projects until the user renames them.
   static const String defaultTitle = 'Untitled design';
 
-  ProjectRepository get _repository => ref.read(projectRepositoryProvider);
+  // Resolved once per build so no method touches `ref` after an await: work
+  // may still be running (e.g. a thumbnail render) when the provider is
+  // disposed.
+  late ProjectRepository _repository;
+  late ImageImportService _imageImport;
+  late ProjectThumbnailService _thumbnails;
 
   @override
   Future<List<ProjectModel>> build() {
-    return ref.read(projectRepositoryProvider).getAllProjects();
+    _repository = ref.watch(projectRepositoryProvider);
+    _imageImport = ref.watch(imageImportServiceProvider);
+    _thumbnails = ref.watch(projectThumbnailServiceProvider);
+    return _repository.getAllProjects();
   }
 
   /// Creates an empty project with a canvas of [canvasSize].
@@ -50,9 +58,7 @@ class ProjectsNotifier extends _$ProjectsNotifier {
   /// Returns `null` (and leaves nothing behind) if the user cancels.
   Future<ProjectModel?> createFromPhoto(ImageSource source) async {
     final id = const Uuid().v4();
-    final photo = await ref
-        .read(imageImportServiceProvider)
-        .importPhoto(source: source, projectId: id);
+    final photo = await _imageImport.importPhoto(source: source, projectId: id);
     if (photo == null) return null;
 
     final canvasSize = CanvasFormat.sizeForPhoto(photo.size);
@@ -133,13 +139,14 @@ class ProjectsNotifier extends _$ProjectsNotifier {
   }
 
   Future<void> _reload() async {
-    state = AsyncData(await _repository.getAllProjects());
+    final projects = await _repository.getAllProjects();
+    if (ref.mounted) state = AsyncData(projects);
   }
 
   /// Thumbnails are a convenience: a failure must never block project changes.
   Future<void> _refreshThumbnail(ProjectModel project) async {
     try {
-      await ref.read(projectThumbnailServiceProvider).refresh(project);
+      await _thumbnails.refresh(project);
     } catch (error, stackTrace) {
       AppLogger.error(
         'Failed to render thumbnail for project ${project.id}',
