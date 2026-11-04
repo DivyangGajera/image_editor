@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_editor/features/canvas/application/canvas_notifier.dart';
-import 'package:image_editor/features/canvas/domain/models/project_model.dart';
 import 'package:image_editor/features/layers/domain/models/sticker_layer.dart';
 import 'package:image_editor/features/stickers/data/sticker_repository.dart';
 import 'package:image_editor/features/stickers/domain/models/sticker_category.dart';
@@ -16,16 +15,16 @@ import 'package:uuid/uuid.dart';
 class StickerPickerSheet extends ConsumerWidget {
   const StickerPickerSheet({
     super.key,
-    this.project,
+    this.projectId,
     this.onStickerSelected,
     this.defaultX = 0.5,
     this.defaultY = 0.5,
     this.defaultScale = 1.0,
   });
 
-  /// Optional active [ProjectModel]. When provided, the instantiated
+  /// Optional active project ID. When provided, the instantiated
   /// [StickerLayer] is automatically added to the canvas via [CanvasNotifier].
-  final ProjectModel? project;
+  final String? projectId;
 
   /// Optional callback invoked when a sticker is selected.
   final ValueChanged<StickerLayer>? onStickerSelected;
@@ -42,7 +41,7 @@ class StickerPickerSheet extends ConsumerWidget {
   /// Helper displaying the modal bottom sheet and returning the instantiated [StickerLayer].
   static Future<StickerLayer?> show(
     BuildContext context, {
-    ProjectModel? project,
+    String? projectId,
     ValueChanged<StickerLayer>? onStickerSelected,
     double defaultX = 0.5,
     double defaultY = 0.5,
@@ -53,7 +52,7 @@ class StickerPickerSheet extends ConsumerWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => StickerPickerSheet(
-        project: project,
+        projectId: projectId,
         onStickerSelected: onStickerSelected,
         defaultX: defaultX,
         defaultY: defaultY,
@@ -75,8 +74,9 @@ class StickerPickerSheet extends ConsumerWidget {
     );
 
     final navigator = Navigator.of(context);
-    if (project != null) {
-      await ref.read(canvasNotifierProvider(project!).notifier).addLayer(layer);
+    final id = projectId;
+    if (id != null) {
+      await ref.read(canvasProvider(id).notifier).addLayer(layer);
     }
 
     onStickerSelected?.call(layer);

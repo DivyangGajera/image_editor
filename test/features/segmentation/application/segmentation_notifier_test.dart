@@ -58,7 +58,7 @@ void main() {
     });
 
     test('initial state has isProcessing false, progress null, error null', () {
-      final state = container.read(segmentationNotifierProvider);
+      final state = container.read(segmentationProvider);
       expect(state.isProcessing, isFalse);
       expect(state.progress, isNull);
       expect(state.error, isNull);
@@ -81,7 +81,7 @@ void main() {
         ),
       ).thenAnswer((_) async => expectedLayer);
 
-      final notifier = container.read(segmentationNotifierProvider.notifier);
+      final notifier = container.read(segmentationProvider.notifier);
 
       final result = await notifier.extractBackground(
         sourceImagePath: '/path/to/img.png',
@@ -89,8 +89,8 @@ void main() {
       );
 
       expect(result, equals(expectedLayer));
-      expect(container.read(segmentationNotifierProvider).isProcessing, isFalse);
-      expect(container.read(segmentationNotifierProvider).error, isNull);
+      expect(container.read(segmentationProvider).isProcessing, isFalse);
+      expect(container.read(segmentationProvider).error, isNull);
     });
 
     test('sets error and rethrows when service fails', () async {
@@ -103,7 +103,7 @@ void main() {
         ),
       ).thenThrow(Exception('ML Kit model execution failed'));
 
-      final notifier = container.read(segmentationNotifierProvider.notifier);
+      final notifier = container.read(segmentationProvider.notifier);
 
       await expectLater(
         notifier.extractBackground(
@@ -113,12 +113,12 @@ void main() {
         throwsA(isA<Exception>()),
       );
 
-      final errorState = container.read(segmentationNotifierProvider);
+      final errorState = container.read(segmentationProvider);
       expect(errorState.isProcessing, isFalse);
       expect(errorState.error, contains('ML Kit model execution failed'));
 
       notifier.clearError();
-      expect(container.read(segmentationNotifierProvider).error, isNull);
+      expect(container.read(segmentationProvider).error, isNull);
     });
   });
 }

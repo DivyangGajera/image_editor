@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_editor/features/canvas/application/canvas_notifier.dart';
 import 'package:image_editor/features/canvas/data/project_repository.dart';
-import 'package:image_editor/features/canvas/domain/models/project_model.dart';
 import 'package:image_editor/features/images/presentation/widgets/filter_selector_bar.dart';
 import 'package:image_editor/features/layers/domain/models/image_layer.dart';
 import 'package:image_editor/features/segmentation/application/segmentation_notifier.dart';
@@ -16,7 +15,7 @@ class ImageEditingToolbar extends ConsumerWidget {
   const ImageEditingToolbar({
     super.key,
     required this.layer,
-    required this.project,
+    required this.projectId,
     this.onLayerChanged,
     this.onRemoveBackground,
   });
@@ -24,8 +23,8 @@ class ImageEditingToolbar extends ConsumerWidget {
   /// The active image layer being configured.
   final ImageLayer layer;
 
-  /// The active project model session.
-  final ProjectModel project;
+  /// ID of the project being edited.
+  final String projectId;
 
   /// Optional notification callback when layer properties change.
   final ValueChanged<ImageLayer>? onLayerChanged;
@@ -37,7 +36,7 @@ class ImageEditingToolbar extends ConsumerWidget {
     final updated = layer.copyWith(
       isFlippedHorizontally: !layer.isFlippedHorizontally,
     );
-    ref.read(canvasNotifierProvider(project).notifier).updateLayer(updated);
+    ref.read(canvasProvider(projectId).notifier).updateLayer(updated);
     onLayerChanged?.call(updated);
   }
 
@@ -46,7 +45,7 @@ class ImageEditingToolbar extends ConsumerWidget {
       activeFilter: filterId,
       clearActiveFilter: filterId == null,
     );
-    ref.read(canvasNotifierProvider(project).notifier).updateLayer(updated);
+    ref.read(canvasProvider(projectId).notifier).updateLayer(updated);
     onLayerChanged?.call(updated);
   }
 
@@ -60,13 +59,13 @@ class ImageEditingToolbar extends ConsumerWidget {
       final projectRepo = ref.read(projectRepositoryProvider);
       final file = await projectRepo.resolveRelativePath(layer.relativeImagePath);
       final cutoutLayer = await ref
-          .read(segmentationNotifierProvider.notifier)
+          .read(segmentationProvider.notifier)
           .extractBackground(
             sourceImagePath: file.path,
-            projectId: project.id,
+            projectId: projectId,
           );
       if (cutoutLayer != null) {
-        ref.read(canvasNotifierProvider(project).notifier).addLayer(cutoutLayer);
+        ref.read(canvasProvider(projectId).notifier).addLayer(cutoutLayer);
       }
     } catch (e) {
       if (context.mounted) {

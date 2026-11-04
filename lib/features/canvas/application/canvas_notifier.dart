@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_editor/features/canvas/data/project_repository.dart';
 import 'package:image_editor/features/canvas/domain/models/models.dart';
 import 'package:image_editor/features/history/history.dart';
 import 'package:image_editor/features/layers/domain/models/models.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+part 'canvas_notifier.g.dart';
 
 /// Immutable state model representing active canvas editing session.
 @immutable
@@ -63,52 +65,64 @@ class CanvasState {
 }
 
 /// Riverpod notifier coordinating canvas workspace layer interactions, mutations,
-/// and automated history snapshot recording.
-class CanvasNotifier extends Notifier<CanvasState> {
-  CanvasNotifier(this.arg);
-
-  /// The project this canvas session edits.
-  final ProjectModel arg;
-
+/// and automated history snapshot recording for a single project.
+///
+/// Keyed by project ID. The project is loaded from [ProjectRepository] on first
+/// use; every mutation records undo history and persists the project.
+@riverpod
+class CanvasNotifier extends _$CanvasNotifier {
   HistoryNotifier get _historyNotifier =>
-      ref.read(historyNotifierProvider(arg.id).notifier);
+      ref.read(historyProvider(projectId).notifier);
 
   ProjectRepository get _projectRepository =>
       ref.read(projectRepositoryProvider);
 
+  /// The loaded canvas state. Mutations are only valid once loading completed.
+  CanvasState get _current => state.requireValue;
+
+  set _current(CanvasState value) => state = AsyncData<CanvasState>(value);
+
   @override
-  CanvasState build() {
-    return CanvasState(project: arg);
+  Future<CanvasState> build(String projectId) async {
+    // Keep this project's history alive for as long as the canvas is in use,
+    // without rebuilding the canvas whenever the history metrics change.
+    ref.listen(historyProvider(projectId), (_, _) {});
+
+    final project = await ref.read(projectRepositoryProvider).loadProject(projectId);
+    if (project == null) {
+      throw StateError('Project "$projectId" was not found.');
+    }
+    return CanvasState(project: project);
   }
 
   /// Updates selection focus to layer [id], or null to deselect.
   void selectLayer(String? id) {
-    if (state.selectedLayerId == id) return;
-    state = state.copyWith(selectedLayerId: () => id);
+    if (_current.selectedLayerId == id) return;
+    _current = _current.copyWith(selectedLayerId: () => id);
   }
 
   /// Sets whether an active touch/drag interaction is underway.
   void setInteracting(bool isInteracting) {
-    if (state.isInteracting == isInteracting) return;
-    state = state.copyWith(isInteracting: isInteracting);
+    if (_current.isInteracting == isInteracting) return;
+    _current = _current.copyWith(isInteracting: isInteracting);
   }
 
   /// Appends [layer] to the canvas, assigning it the top stacking [zIndex],
   /// recording history, and auto-selecting the newly added layer.
   Future<void> addLayer(CanvasLayer layer) async {
     // Record current state before mutating
-    await _historyNotifier.pushState(state.project.layers);
+    await _historyNotifier.pushState(_current.project.layers);
 
-    final updatedLayers = List<CanvasLayer>.from(state.project.layers);
+    final updatedLayers = List<CanvasLayer>.from(_current.project.layers);
     final indexedLayer = _applyZIndex(layer, updatedLayers.length);
     updatedLayers.add(indexedLayer);
 
-    final updatedProject = state.project.copyWith(
+    final updatedProject = _current.project.copyWith(
       layers: updatedLayers,
       updatedAt: DateTime.now(),
     );
 
-    state = state.copyWith(
+    _current = _current.copyWith(
       project: updatedProject,
       selectedLayerId: () => indexedLayer.id,
     );
@@ -125,14 +139,14 @@ class CanvasNotifier extends Notifier<CanvasState> {
     double? rotation,
     bool recordHistory = true,
   }) async {
-    final index = state.project.layers.indexWhere((l) => l.id == id);
+    final index = _current.project.layers.indexWhere((l) => l.id == id);
     if (index == -1) return;
 
     if (recordHistory) {
-      await _historyNotifier.pushState(state.project.layers);
+      await _historyNotifier.pushState(_current.project.layers);
     }
 
-    final updatedLayers = List<CanvasLayer>.from(state.project.layers);
+    final updatedLayers = List<CanvasLayer>.from(_current.project.layers);
     updatedLayers[index] = _applyTransform(
       updatedLayers[index],
       x: x,
@@ -141,37 +155,37 @@ class CanvasNotifier extends Notifier<CanvasState> {
       rotation: rotation,
     );
 
-    final updatedProject = state.project.copyWith(
+    final updatedProject = _current.project.copyWith(
       layers: updatedLayers,
       updatedAt: DateTime.now(),
     );
 
-    state = state.copyWith(project: updatedProject);
+    _current = _current.copyWith(project: updatedProject);
     await _projectRepository.saveProject(updatedProject);
   }
 
   /// Replaces an existing layer with [layer], records history, and persists updates.
   Future<void> updateLayer(CanvasLayer layer) async {
-    final index = state.project.layers.indexWhere((l) => l.id == layer.id);
+    final index = _current.project.layers.indexWhere((l) => l.id == layer.id);
     if (index == -1) return;
 
-    await _historyNotifier.pushState(state.project.layers);
+    await _historyNotifier.pushState(_current.project.layers);
 
-    final updatedLayers = List<CanvasLayer>.from(state.project.layers);
+    final updatedLayers = List<CanvasLayer>.from(_current.project.layers);
     updatedLayers[index] = layer;
 
-    final updatedProject = state.project.copyWith(
+    final updatedProject = _current.project.copyWith(
       layers: updatedLayers,
       updatedAt: DateTime.now(),
     );
 
-    state = state.copyWith(project: updatedProject);
+    _current = _current.copyWith(project: updatedProject);
     await _projectRepository.saveProject(updatedProject);
   }
 
   /// Reorders layer from [oldIndex] to [newIndex] and recalculates sequential zIndices.
   Future<void> reorderLayer(int oldIndex, int newIndex) async {
-    final layers = state.project.layers;
+    final layers = _current.project.layers;
     if (oldIndex < 0 ||
         oldIndex >= layers.length ||
         newIndex < 0 ||
@@ -187,26 +201,26 @@ class CanvasNotifier extends Notifier<CanvasState> {
     updatedList.insert(newIndex, movedItem);
 
     final reIndexed = _reIndexLayers(updatedList);
-    final updatedProject = state.project.copyWith(
+    final updatedProject = _current.project.copyWith(
       layers: reIndexed,
       updatedAt: DateTime.now(),
     );
 
-    state = state.copyWith(project: updatedProject);
+    _current = _current.copyWith(project: updatedProject);
     await _projectRepository.saveProject(updatedProject);
   }
 
   /// Brings layer [id] to the front of the canvas (highest stacking zIndex).
   Future<void> bringToFront(String id) async {
-    final index = state.project.layers.indexWhere((l) => l.id == id);
-    if (index == -1 || index == state.project.layers.length - 1) return;
+    final index = _current.project.layers.indexWhere((l) => l.id == id);
+    if (index == -1 || index == _current.project.layers.length - 1) return;
 
-    await reorderLayer(index, state.project.layers.length - 1);
+    await reorderLayer(index, _current.project.layers.length - 1);
   }
 
   /// Sends layer [id] to the back of the canvas (lowest stacking zIndex).
   Future<void> sendToBack(String id) async {
-    final index = state.project.layers.indexWhere((l) => l.id == id);
+    final index = _current.project.layers.indexWhere((l) => l.id == id);
     if (index == -1 || index == 0) return;
 
     await reorderLayer(index, 0);
@@ -214,22 +228,22 @@ class CanvasNotifier extends Notifier<CanvasState> {
 
   /// Deletes layer [id], resets selection if deleted, and re-indexes remaining layers.
   Future<void> deleteLayer(String id) async {
-    final index = state.project.layers.indexWhere((l) => l.id == id);
+    final index = _current.project.layers.indexWhere((l) => l.id == id);
     if (index == -1) return;
 
-    await _historyNotifier.pushState(state.project.layers);
+    await _historyNotifier.pushState(_current.project.layers);
 
-    final updatedList = List<CanvasLayer>.from(state.project.layers)..removeAt(index);
+    final updatedList = List<CanvasLayer>.from(_current.project.layers)..removeAt(index);
     final reIndexed = _reIndexLayers(updatedList);
 
-    final updatedProject = state.project.copyWith(
+    final updatedProject = _current.project.copyWith(
       layers: reIndexed,
       updatedAt: DateTime.now(),
     );
 
-    state = state.copyWith(
+    _current = _current.copyWith(
       project: updatedProject,
-      selectedLayerId: state.selectedLayerId == id ? () => null : null,
+      selectedLayerId: _current.selectedLayerId == id ? () => null : null,
     );
 
     await _projectRepository.saveProject(updatedProject);
@@ -237,17 +251,17 @@ class CanvasNotifier extends Notifier<CanvasState> {
 
   /// Reverts to the previous state recorded in the [HistoryNotifier].
   Future<void> undo() async {
-    final previousLayers = await _historyNotifier.undo(state.project.layers);
+    final previousLayers = await _historyNotifier.undo(_current.project.layers);
     if (previousLayers != null) {
-      final updatedProject = state.project.copyWith(
+      final updatedProject = _current.project.copyWith(
         layers: previousLayers,
         updatedAt: DateTime.now(),
       );
 
-      state = state.copyWith(
+      _current = _current.copyWith(
         project: updatedProject,
-        selectedLayerId: updatedProject.layers.any((l) => l.id == state.selectedLayerId)
-            ? () => state.selectedLayerId
+        selectedLayerId: updatedProject.layers.any((l) => l.id == _current.selectedLayerId)
+            ? () => _current.selectedLayerId
             : () => null,
       );
 
@@ -257,17 +271,17 @@ class CanvasNotifier extends Notifier<CanvasState> {
 
   /// Re-applies the forward state from the [HistoryNotifier].
   Future<void> redo() async {
-    final nextLayers = await _historyNotifier.redo(state.project.layers);
+    final nextLayers = await _historyNotifier.redo(_current.project.layers);
     if (nextLayers != null) {
-      final updatedProject = state.project.copyWith(
+      final updatedProject = _current.project.copyWith(
         layers: nextLayers,
         updatedAt: DateTime.now(),
       );
 
-      state = state.copyWith(
+      _current = _current.copyWith(
         project: updatedProject,
-        selectedLayerId: updatedProject.layers.any((l) => l.id == state.selectedLayerId)
-            ? () => state.selectedLayerId
+        selectedLayerId: updatedProject.layers.any((l) => l.id == _current.selectedLayerId)
+            ? () => _current.selectedLayerId
             : () => null,
       );
 
@@ -316,9 +330,3 @@ class CanvasNotifier extends Notifier<CanvasState> {
     return layer;
   }
 }
-
-/// Family provider exposing [CanvasNotifier] scoped to a [ProjectModel].
-final canvasNotifierProvider =
-    NotifierProvider.family<CanvasNotifier, CanvasState, ProjectModel>(
-  CanvasNotifier.new,
-);

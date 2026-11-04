@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_editor/features/canvas/domain/models/project_model.dart';
 import 'package:image_editor/features/export/application/canvas_export_service.dart';
 import 'package:image_editor/features/export/domain/models/models.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
+
+part 'export_notifier.g.dart';
 
 /// State representation for the canvas export workflow.
 @immutable
@@ -71,7 +73,8 @@ class ExportState {
 }
 
 /// Riverpod notifier coordinating headless export jobs and local gallery persistence.
-class ExportNotifier extends Notifier<ExportState> {
+@Riverpod(keepAlive: true)
+class ExportNotifier extends _$ExportNotifier {
   @override
   ExportState build() => const ExportState();
 
@@ -120,7 +123,3 @@ class ExportNotifier extends Notifier<ExportState> {
     state = const ExportState();
   }
 }
-
-/// Riverpod provider for [ExportNotifier].
-final exportNotifierProvider =
-    NotifierProvider<ExportNotifier, ExportState>(ExportNotifier.new);

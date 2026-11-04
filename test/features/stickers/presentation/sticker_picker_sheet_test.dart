@@ -72,7 +72,7 @@ void main() {
 
     Widget buildTestableWidget({
       StickerLayer? Function(StickerLayer)? onSelected,
-      ProjectModel? project,
+      String? projectId,
     }) {
       return ProviderScope(
         overrides: [
@@ -82,7 +82,7 @@ void main() {
         child: MaterialApp(
           home: Scaffold(
             body: StickerPickerSheet(
-              project: project,
+              projectId: projectId,
               onStickerSelected: onSelected != null ? (layer) => onSelected(layer) : null,
             ),
           ),
@@ -198,6 +198,9 @@ void main() {
         ],
       );
       final container = testContainer!;
+      // Real Hive file I/O must run outside the fake-async test zone.
+      await tester.runAsync(() => projectRepository.saveProject(testProject));
+      container.listen(canvasProvider(testProject.id), (_, _) {});
 
       await tester.pumpWidget(
         UncontrolledProviderScope(
@@ -205,7 +208,7 @@ void main() {
           child: MaterialApp(
             home: Scaffold(
               body: StickerPickerSheet(
-                project: testProject,
+                projectId: testProject.id,
               ),
             ),
           ),
@@ -213,7 +216,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(container.read(canvasNotifierProvider(testProject)).project.layers, isEmpty);
+      expect(container.read(canvasProvider(testProject.id)).requireValue.project.layers, isEmpty);
 
       // Tap sticker within runAsync to let Hive file I/O complete
       await tester.runAsync(() async {
@@ -222,7 +225,7 @@ void main() {
       });
       await tester.pumpAndSettle();
 
-      final state = container.read(canvasNotifierProvider(testProject));
+      final state = container.read(canvasProvider(testProject.id)).requireValue;
       expect(state.project.layers.length, equals(1));
       expect(state.project.layers.first, isA<StickerLayer>());
       final layer = state.project.layers.first as StickerLayer;

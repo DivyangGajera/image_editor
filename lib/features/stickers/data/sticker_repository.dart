@@ -1,5 +1,7 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_editor/features/stickers/domain/models/models.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+part 'sticker_repository.g.dart';
 
 /// Repository providing a categorized manifest of bundled promotional badge
 /// and sticker assets.
@@ -93,7 +95,6 @@ class StickerRepository {
   }
 }
 
-/// Riverpod provider for singleton instance of [StickerRepository].
-final stickerRepositoryProvider = Provider<StickerRepository>((ref) {
-  return const StickerRepository();
-});
+/// App-wide singleton [StickerRepository].
+@Riverpod(keepAlive: true)
+StickerRepository stickerRepository(Ref ref) => const StickerRepository();

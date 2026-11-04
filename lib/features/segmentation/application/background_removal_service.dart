@@ -1,10 +1,12 @@
 import 'dart:io';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_mlkit_selfie_segmentation/google_mlkit_selfie_segmentation.dart';
 import 'package:image_editor/features/canvas/data/project_repository.dart';
 import 'package:image_editor/features/layers/domain/models/image_layer.dart';
 import 'package:image_editor/features/segmentation/application/pixel_cutout_processor.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
+
+part 'background_removal_service.g.dart';
 
 /// Orchestrates offline background extraction using Google ML Kit Selfie Segmentation
 /// and concurrency-isolated raw pixel alpha feathering in a background Isolate.
@@ -92,8 +94,10 @@ class BackgroundRemovalService {
   }
 }
 
-/// Riverpod provider for [BackgroundRemovalService].
-final backgroundRemovalServiceProvider = Provider<BackgroundRemovalService>((ref) {
-  final projectRepo = ref.watch(projectRepositoryProvider);
-  return BackgroundRemovalService(projectRepository: projectRepo);
-});
+/// App-wide singleton [BackgroundRemovalService].
+@Riverpod(keepAlive: true)
+BackgroundRemovalService backgroundRemovalService(Ref ref) {
+  return BackgroundRemovalService(
+    projectRepository: ref.watch(projectRepositoryProvider),
+  );
+}

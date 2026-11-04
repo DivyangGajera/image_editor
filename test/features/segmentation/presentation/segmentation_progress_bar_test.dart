@@ -28,7 +28,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            segmentationNotifierProvider.overrideWith(() => _ProcessingNotifier(
+            segmentationProvider.overrideWith(() => _ProcessingNotifier(
                   const SegmentationState(isProcessing: true),
                 )),
           ],
@@ -53,7 +53,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            segmentationNotifierProvider.overrideWith(() => _ProcessingNotifier(
+            segmentationProvider.overrideWith(() => _ProcessingNotifier(
                   const SegmentationState(isProcessing: true, progress: 0.72),
                 )),
           ],

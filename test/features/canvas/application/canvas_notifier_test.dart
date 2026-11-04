@@ -28,6 +28,8 @@ void main() {
       updatedAt: testDate,
     );
 
+    final canvasUnderTest = canvasProvider(initialProject.id);
+
     setUpAll(() {
       if (!Hive.isAdapterRegistered(0)) Hive.registerAdapter(ImageLayerAdapter());
       if (!Hive.isAdapterRegistered(1)) Hive.registerAdapter(TextLayerAdapter());
@@ -52,12 +54,18 @@ void main() {
         historyBox: historyBox,
       );
 
+      await projectRepository.saveProject(initialProject);
+
       container = ProviderContainer(
         overrides: [
           projectRepositoryProvider.overrideWithValue(projectRepository),
           historyManagerProvider(initialProject.id).overrideWithValue(historyManager),
         ],
       );
+
+      // Keep the auto-disposed canvas provider alive and wait for the project to load.
+      container.listen(canvasUnderTest, (_, _) {});
+      await container.read(canvasUnderTest.future);
     });
 
     tearDown(() async {
@@ -70,12 +78,14 @@ void main() {
       }
     });
 
+    CanvasState readState() => container.read(canvasUnderTest).requireValue;
+
     TextLayer makeText(String id, String text) {
       return TextLayer(id: id, x: 0.5, y: 0.5, text: text);
     }
 
-    test('initial state has empty layers and no selection', () {
-      final state = container.read(canvasNotifierProvider(initialProject));
+    test('loads the project from the repository into initial state', () {
+      final state = readState();
 
       expect(state.project.id, initialProject.id);
       expect(state.project.layers, isEmpty);
@@ -85,43 +95,43 @@ void main() {
     });
 
     test('selectLayer and setInteracting update ephemeral state without modifying history', () {
-      final notifier = container.read(canvasNotifierProvider(initialProject).notifier);
+      final notifier = container.read(canvasUnderTest.notifier);
 
       notifier.selectLayer('l-test-1');
-      expect(container.read(canvasNotifierProvider(initialProject)).selectedLayerId, 'l-test-1');
+      expect(readState().selectedLayerId, 'l-test-1');
 
       notifier.setInteracting(true);
-      expect(container.read(canvasNotifierProvider(initialProject)).isInteracting, isTrue);
+      expect(readState().isInteracting, isTrue);
 
-      final history = container.read(historyNotifierProvider(initialProject.id));
+      final history = container.read(historyProvider(initialProject.id));
       expect(history.canUndo, isFalse);
     });
 
     test('addLayer appends layer, assigns sequential zIndex, auto-selects, and records history', () async {
-      final notifier = container.read(canvasNotifierProvider(initialProject).notifier);
+      final notifier = container.read(canvasUnderTest.notifier);
       final layer1 = makeText('l-1', 'First');
       final layer2 = makeText('l-2', 'Second');
 
       await notifier.addLayer(layer1);
-      var state = container.read(canvasNotifierProvider(initialProject));
+      var state = readState();
       expect(state.project.layers.length, 1);
       expect(state.project.layers[0].zIndex, 0);
       expect(state.selectedLayerId, 'l-1');
 
       await notifier.addLayer(layer2);
-      state = container.read(canvasNotifierProvider(initialProject));
+      state = readState();
       expect(state.project.layers.length, 2);
       expect(state.project.layers[0].zIndex, 0);
       expect(state.project.layers[1].zIndex, 1);
       expect(state.selectedLayerId, 'l-2');
 
-      final history = container.read(historyNotifierProvider(initialProject.id));
+      final history = container.read(historyProvider(initialProject.id));
       expect(history.canUndo, isTrue);
       expect(history.totalUndoCount, 2);
     });
 
     test('updateLayerTransform modifies target layer and records history', () async {
-      final notifier = container.read(canvasNotifierProvider(initialProject).notifier);
+      final notifier = container.read(canvasUnderTest.notifier);
       await notifier.addLayer(makeText('l-1', 'Initial'));
 
       await notifier.updateLayerTransform(
@@ -132,19 +142,19 @@ void main() {
         rotation: 0.5,
       );
 
-      final state = container.read(canvasNotifierProvider(initialProject));
+      final state = readState();
       final updated = state.project.layers.first;
       expect(updated.x, 0.8);
       expect(updated.y, 0.3);
       expect(updated.scale, 1.5);
       expect(updated.rotation, 0.5);
 
-      final history = container.read(historyNotifierProvider(initialProject.id));
+      final history = container.read(historyProvider(initialProject.id));
       expect(history.totalUndoCount, 2);
     });
 
     test('reorderLayer swaps positions, updates zIndex sequentially, and records history', () async {
-      final notifier = container.read(canvasNotifierProvider(initialProject).notifier);
+      final notifier = container.read(canvasUnderTest.notifier);
       await notifier.addLayer(makeText('l-0', 'Zero'));
       await notifier.addLayer(makeText('l-1', 'One'));
       await notifier.addLayer(makeText('l-2', 'Two'));
@@ -152,7 +162,7 @@ void main() {
       // Move layer at index 0 to index 2
       await notifier.reorderLayer(0, 2);
 
-      final state = container.read(canvasNotifierProvider(initialProject));
+      final state = readState();
       expect(state.project.layers[0].id, 'l-1');
       expect(state.project.layers[0].zIndex, 0);
 
@@ -164,35 +174,35 @@ void main() {
     });
 
     test('bringToFront and sendToBack update stacking order and zIndex', () async {
-      final notifier = container.read(canvasNotifierProvider(initialProject).notifier);
+      final notifier = container.read(canvasUnderTest.notifier);
       await notifier.addLayer(makeText('l-0', 'Bottom'));
       await notifier.addLayer(makeText('l-1', 'Middle'));
       await notifier.addLayer(makeText('l-2', 'Top'));
 
       // Bring 'Bottom' to front
       await notifier.bringToFront('l-0');
-      var state = container.read(canvasNotifierProvider(initialProject));
+      var state = readState();
       expect(state.project.layers.last.id, 'l-0');
       expect(state.project.layers.last.zIndex, 2);
 
       // Send 'Bottom' to back
       await notifier.sendToBack('l-0');
-      state = container.read(canvasNotifierProvider(initialProject));
+      state = readState();
       expect(state.project.layers.first.id, 'l-0');
       expect(state.project.layers.first.zIndex, 0);
     });
 
     test('deleteLayer removes layer, clears selection if matching, and re-indexes remaining layers', () async {
-      final notifier = container.read(canvasNotifierProvider(initialProject).notifier);
+      final notifier = container.read(canvasUnderTest.notifier);
       await notifier.addLayer(makeText('l-0', 'Zero'));
       await notifier.addLayer(makeText('l-1', 'One'));
       await notifier.addLayer(makeText('l-2', 'Two'));
 
       notifier.selectLayer('l-1');
-      expect(container.read(canvasNotifierProvider(initialProject)).selectedLayerId, 'l-1');
+      expect(readState().selectedLayerId, 'l-1');
 
       await notifier.deleteLayer('l-1');
-      final state = container.read(canvasNotifierProvider(initialProject));
+      final state = readState();
 
       expect(state.project.layers.length, 2);
       expect(state.project.layers.any((l) => l.id == 'l-1'), isFalse);
@@ -206,37 +216,47 @@ void main() {
     });
 
     test('undo and redo revert and re-apply canvas layer states', () async {
-      final notifier = container.read(canvasNotifierProvider(initialProject).notifier);
+      final notifier = container.read(canvasUnderTest.notifier);
       final l1 = makeText('l-1', 'First');
       final l2 = makeText('l-2', 'Second');
 
       await notifier.addLayer(l1);
       await notifier.addLayer(l2);
 
-      expect(container.read(canvasNotifierProvider(initialProject)).project.layers.length, 2);
+      expect(readState().project.layers.length, 2);
 
       // Undo addition of l2
       await notifier.undo();
-      var state = container.read(canvasNotifierProvider(initialProject));
+      var state = readState();
       expect(state.project.layers.length, 1);
       expect(state.project.layers.first.id, 'l-1');
 
       // Undo addition of l1
       await notifier.undo();
-      state = container.read(canvasNotifierProvider(initialProject));
+      state = readState();
       expect(state.project.layers, isEmpty);
 
       // Redo addition of l1
       await notifier.redo();
-      state = container.read(canvasNotifierProvider(initialProject));
+      state = readState();
       expect(state.project.layers.length, 1);
       expect(state.project.layers.first.id, 'l-1');
 
       // Redo addition of l2
       await notifier.redo();
-      state = container.read(canvasNotifierProvider(initialProject));
+      state = readState();
       expect(state.project.layers.length, 2);
       expect(state.project.layers.last.id, 'l-2');
+    });
+
+    test('build fails with StateError when the project does not exist', () async {
+      final missing = canvasProvider('missing-project');
+      container.listen(missing, (_, _) {});
+
+      await expectLater(
+        container.read(missing.future),
+        throwsA(isA<StateError>()),
+      );
     });
   });
 }

@@ -5,7 +5,6 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_editor/core/utils/color_filters.dart';
 import 'package:image_editor/features/canvas/data/project_repository.dart';
@@ -15,6 +14,9 @@ import 'package:image_editor/features/layers/domain/models/models.dart';
 import 'package:image_editor/features/layers/presentation/widgets/doodle_painter.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+part 'canvas_export_service.g.dart';
 
 /// Production export engine that renders the entire canvas workspace
 /// headlessly using [ui.PictureRecorder] and [ui.Canvas], decoupled from
@@ -372,8 +374,10 @@ class CanvasExportService {
   }
 }
 
-/// Riverpod provider for [CanvasExportService].
-final canvasExportServiceProvider = Provider<CanvasExportService>((ref) {
-  final projectRepo = ref.watch(projectRepositoryProvider);
-  return CanvasExportService(projectRepository: projectRepo);
-});
+/// App-wide singleton [CanvasExportService].
+@Riverpod(keepAlive: true)
+CanvasExportService canvasExportService(Ref ref) {
+  return CanvasExportService(
+    projectRepository: ref.watch(projectRepositoryProvider),
+  );
+}

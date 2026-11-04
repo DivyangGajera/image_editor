@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_editor/features/history/data/history_manager.dart';
 import 'package:image_editor/features/layers/domain/models/models.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+part 'history_notifier.g.dart';
 
 /// Immutable state model exposing the active undo/redo metrics.
 @immutable
@@ -74,28 +76,23 @@ class HistoryState {
       '[RAM: $inMemoryUndoCount, Disk: $diskUndoCount], redo: $redoCount, prefetching: $isPrefetching)';
 }
 
-/// Provider for project-scoped [HistoryManager] instance.
-final historyManagerProvider =
-    Provider.family<HistoryManager, String>((ref, projectId) {
+/// Project-scoped [HistoryManager]. Disposed (and its Hive box closed) when the
+/// last listener of the project's history goes away.
+@riverpod
+HistoryManager historyManager(Ref ref, String projectId) {
   final manager = HistoryManager(projectId: projectId);
-  ref.onDispose(() {
-    manager.dispose();
-  });
+  ref.onDispose(manager.dispose);
   return manager;
-});
+}
 
 /// Riverpod notifier coordinating canvas undo/redo history operations.
-class HistoryNotifier extends Notifier<HistoryState> {
-  HistoryNotifier(this.arg);
-
-  /// The project ID whose history this notifier manages.
-  final String arg;
-
+@riverpod
+class HistoryNotifier extends _$HistoryNotifier {
   late HistoryManager _manager;
 
   @override
-  HistoryState build() {
-    _manager = ref.watch(historyManagerProvider(arg));
+  HistoryState build(String projectId) {
+    _manager = ref.watch(historyManagerProvider(projectId));
     return _computeState();
   }
 
@@ -137,9 +134,3 @@ class HistoryNotifier extends Notifier<HistoryState> {
     state = _computeState();
   }
 }
-
-/// Family provider for [HistoryNotifier] indexed by [projectId].
-final historyNotifierProvider =
-    NotifierProvider.family<HistoryNotifier, HistoryState, String>(
-  HistoryNotifier.new,
-);
