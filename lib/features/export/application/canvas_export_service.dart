@@ -10,8 +10,9 @@ import 'package:image_editor/core/utils/color_filters.dart';
 import 'package:image_editor/features/canvas/data/project_repository.dart';
 import 'package:image_editor/features/canvas/domain/models/models.dart';
 import 'package:image_editor/features/export/domain/models/models.dart';
+import 'package:image_editor/features/fonts/application/font_library_notifier.dart';
+import 'package:image_editor/features/fonts/application/font_resolver.dart';
 import 'package:image_editor/features/layers/application/doodle_geometry.dart';
-import 'package:image_editor/features/layers/application/font_service.dart';
 import 'package:image_editor/features/layers/application/text_layer_style.dart';
 import 'package:image_editor/features/layers/domain/models/models.dart';
 import 'package:image_editor/features/layers/presentation/widgets/doodle_painter.dart';
@@ -27,14 +28,16 @@ part 'canvas_export_service.g.dart';
 class CanvasExportService {
   CanvasExportService({
     required this.projectRepository,
-    FontService? fontService,
+    this.installedFontFamilies,
     this.picturesDirectoryProvider,
-  }) : fontService = fontService ?? FontService();
+  });
 
   final ProjectRepository projectRepository;
 
-  /// Resolves text layer fonts exactly like the on-canvas text widget.
-  final FontService fontService;
+  /// Font families that can be rendered (from the font library), so text uses
+  /// the same font, or the same fallback, as on the canvas. Returning null
+  /// applies every family as-is.
+  final Set<String>? Function()? installedFontFamilies;
 
   /// Optional directory provider override for testing.
   final Future<Directory> Function()? picturesDirectoryProvider;
@@ -201,9 +204,10 @@ class CanvasExportService {
   }
 
   void _drawTextLayer(Canvas canvas, TextLayer layer) {
-    final style = fontService.getTextStyle(
-      fontFamily: layer.fontFamily,
-      baseStyle: TextLayerStyle.base(layer),
+    final style = FontResolver.apply(
+      TextLayerStyle.base(layer),
+      layer.fontFamily,
+      installedFontFamilies?.call(),
     );
 
     final painter = TextPainter(
@@ -389,6 +393,6 @@ class CanvasExportService {
 CanvasExportService canvasExportService(Ref ref) {
   return CanvasExportService(
     projectRepository: ref.watch(projectRepositoryProvider),
-    fontService: ref.watch(fontServiceProvider),
+    installedFontFamilies: () => ref.read(fontLibraryProvider).value?.installedFamilies,
   );
 }

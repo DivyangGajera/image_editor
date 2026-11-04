@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:image_editor/features/fonts/application/font_library_notifier.dart';
+import 'package:image_editor/features/fonts/domain/font_catalog.dart';
 import 'package:image_editor/features/layers/domain/models/models.dart';
 import 'package:image_editor/features/layers/presentation/widgets/text_layer_widget.dart';
 
+import '../../../helpers/fixed_font_library.dart';
+
 void main() {
-  setUpAll(() {
-    GoogleFonts.config.allowRuntimeFetching = false;
-  });
 
   group('TextLayerWidget Presentation Tests', () {
-    Widget createTestApp(TextLayer layer) {
+    Widget createTestApp(TextLayer layer, {List<String> installed = const []}) {
       return ProviderScope(
+        overrides: [fontLibraryProvider.overrideWith(() => FixedFontLibrary(installed))],
         child: MaterialApp(
           home: Scaffold(
             body: Center(
@@ -114,6 +115,36 @@ void main() {
       expect(decoration.color, const Color(0xFF1E293B));
       expect(decoration.borderRadius, BorderRadius.circular(12.0));
       expect(matchingContainer.padding, const EdgeInsets.symmetric(horizontal: 14.0, vertical: 8.0));
+    });
+
+    testWidgets('an installed font is applied without a missing badge', (tester) async {
+      await tester.pumpWidget(createTestApp(
+        const TextLayer(id: 't', x: 0.5, y: 0.5, text: 'Sale', fontFamily: 'Anton'),
+        installed: ['Anton'],
+      ));
+      await tester.pumpAndSettle();
+
+      expect(tester.widget<Text>(find.text('Sale')).style?.fontFamily, 'Anton');
+      expect(find.byKey(const ValueKey('missing_font_badge')), findsNothing);
+    });
+
+    testWidgets('a deleted font falls back to the default and shows the badge', (tester) async {
+      await tester.pumpWidget(createTestApp(
+        const TextLayer(id: 't', x: 0.5, y: 0.5, text: 'Sale', fontFamily: 'Anton'),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(tester.widget<Text>(find.text('Sale')).style?.fontFamily, isNull);
+      expect(find.byKey(const ValueKey('missing_font_badge')), findsOneWidget);
+    });
+
+    testWidgets('the built-in default never shows the badge', (tester) async {
+      await tester.pumpWidget(createTestApp(
+        const TextLayer(id: 't', x: 0.5, y: 0.5, text: 'Sale', fontFamily: systemDefaultFontFamily),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('missing_font_badge')), findsNothing);
     });
   });
 }

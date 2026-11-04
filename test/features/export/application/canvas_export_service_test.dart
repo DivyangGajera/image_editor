@@ -3,7 +3,6 @@ import 'dart:typed_data';
 
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_editor/features/canvas/data/project_repository.dart';
 import 'package:image_editor/features/canvas/domain/models/models.dart';
@@ -16,8 +15,6 @@ class MockProjectRepository extends Mock implements ProjectRepository {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  // Export resolves fonts like the editor; tests must never hit the network.
-  GoogleFonts.config.allowRuntimeFetching = false;
 
   late MockProjectRepository mockRepo;
   late Directory tempDir;
