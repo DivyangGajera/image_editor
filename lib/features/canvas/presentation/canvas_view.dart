@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_editor/core/theme/app_theme.dart';
+import 'package:image_editor/features/canvas/application/canvas_coordinate_converter.dart';
 import 'package:image_editor/features/canvas/application/canvas_notifier.dart';
 import 'package:image_editor/features/canvas/presentation/widgets/canvas_layer_item_widget.dart';
 import 'package:image_editor/features/layers/domain/models/models.dart';
@@ -18,7 +20,6 @@ class CanvasView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
     final provider = canvasProvider(projectId);
     final notifier = ref.read(provider.notifier);
 
@@ -40,11 +41,16 @@ class CanvasView extends ConsumerWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        final viewScale = CanvasCoordinateConverter.fitScale(
+          viewportSize: constraints.biggest,
+          canvasSize: canvasSize,
+        );
+
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () => notifier.selectLayer(null),
           child: Container(
-            color: theme.scaffoldBackgroundColor,
+            color: AppTheme.canvasBackdrop,
             alignment: Alignment.center,
             child: FittedBox(
               fit: BoxFit.contain,
@@ -57,9 +63,9 @@ class CanvasView extends ConsumerWidget {
                     color: Colors.white,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black45,
-                        blurRadius: 16.0,
-                        offset: Offset(0, 4),
+                        color: Color(0x33000000),
+                        blurRadius: 24.0,
+                        offset: Offset(0, 6),
                       ),
                     ],
                   ),
@@ -81,6 +87,7 @@ class CanvasView extends ConsumerWidget {
                           projectId: projectId,
                           layerId: id,
                           canvasSize: canvasSize,
+                          viewScale: viewScale,
                         ),
                     ],
                   ),

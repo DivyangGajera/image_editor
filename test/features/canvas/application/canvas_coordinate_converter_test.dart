@@ -156,5 +156,58 @@ void main() {
         );
       });
     });
+
+    group('fitScale', () {
+      test('uses the limiting dimension of a letterboxed canvas', () {
+        expect(
+          CanvasCoordinateConverter.fitScale(
+            viewportSize: const Size(400, 800),
+            canvasSize: const Size(1080, 1080),
+          ),
+          closeTo(400 / 1080, 1e-9),
+        );
+        expect(
+          CanvasCoordinateConverter.fitScale(
+            viewportSize: const Size(1000, 500),
+            canvasSize: const Size(1080, 1920),
+          ),
+          closeTo(500 / 1920, 1e-9),
+        );
+      });
+
+      test('returns 1.0 for empty sizes', () {
+        expect(
+          CanvasCoordinateConverter.fitScale(
+            viewportSize: Size.zero,
+            canvasSize: const Size(1080, 1080),
+          ),
+          1.0,
+        );
+      });
+    });
+
+    group('screenDeltaToNormalized', () {
+      test('maps finger movement to the same visual distance on the canvas', () {
+        // Canvas 1000 units wide shown at 0.4 px/unit: 40 px on screen = 100 units = 0.1.
+        final delta = CanvasCoordinateConverter.screenDeltaToNormalized(
+          screenDelta: const Offset(40, -20),
+          canvasSize: const Size(1000, 500),
+          viewScale: 0.4,
+        );
+        expect(delta.dx, closeTo(0.1, 1e-9));
+        expect(delta.dy, closeTo(-0.1, 1e-9));
+      });
+
+      test('returns zero for a degenerate view scale', () {
+        expect(
+          CanvasCoordinateConverter.screenDeltaToNormalized(
+            screenDelta: const Offset(10, 10),
+            canvasSize: const Size(1000, 1000),
+            viewScale: 0,
+          ),
+          Offset.zero,
+        );
+      });
+    });
   });
 }

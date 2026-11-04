@@ -14,11 +14,15 @@ class CanvasLayerItemWidget extends ConsumerWidget {
     required this.projectId,
     required this.layerId,
     required this.canvasSize,
+    required this.viewScale,
   });
 
   final String projectId;
   final String layerId;
   final Size canvasSize;
+
+  /// Screen logical pixels per canvas unit.
+  final double viewScale;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -51,23 +55,17 @@ class CanvasLayerItemWidget extends ConsumerWidget {
       layer: layer,
       isSelected: isSelected,
       canvasSize: canvasSize,
+      viewScale: viewScale,
       onSelect: () => notifier.selectLayer(layer.id),
-      onTransformUpdate: ({
-        double? x,
-        double? y,
-        double? scale,
-        double? rotation,
-        bool recordHistory = true,
-      }) {
-        notifier.updateLayerTransform(
-          layer.id,
-          x: x,
-          y: y,
-          scale: scale,
-          rotation: rotation,
-          recordHistory: recordHistory,
-        );
-      },
+      onInteractionStart: () => notifier.beginInteraction(layer.id),
+      onTransformPreview: ({x, y, scale, rotation}) => notifier.previewTransform(
+        layer.id,
+        x: x,
+        y: y,
+        scale: scale,
+        rotation: rotation,
+      ),
+      onInteractionEnd: notifier.commitInteraction,
       onDelete: () => notifier.deleteLayer(layer.id),
       child: LayerRenderer(layer: layer, canvasSize: canvasSize),
     );

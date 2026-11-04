@@ -82,6 +82,9 @@ class CanvasNotifier extends _$CanvasNotifier {
 
   set _current(CanvasState value) => state = AsyncData<CanvasState>(value);
 
+  /// Layers captured when the current gesture began; null when idle.
+  List<CanvasLayer>? _interactionSnapshot;
+
   @override
   Future<CanvasState> build(String projectId) async {
     final project = await ref.read(projectRepositoryProvider).loadProject(projectId);
@@ -103,10 +106,58 @@ class CanvasNotifier extends _$CanvasNotifier {
     _current = _current.copyWith(selectedLayerId: () => id);
   }
 
-  /// Sets whether an active touch/drag interaction is underway.
-  void setInteracting(bool isInteracting) {
-    if (_current.isInteracting == isInteracting) return;
-    _current = _current.copyWith(isInteracting: isInteracting);
+  /// Starts a continuous gesture (drag, pinch, rotate) on layer [id].
+  ///
+  /// Selects the layer and remembers the pre-gesture layers, so the whole
+  /// gesture becomes exactly one undo step when [commitInteraction] is called.
+  void beginInteraction(String id) {
+    _interactionSnapshot ??= _current.project.layers;
+    _current = _current.copyWith(
+      selectedLayerId: () => id,
+      isInteracting: true,
+    );
+  }
+
+  /// Applies a live transform to layer [id] while a gesture is in progress.
+  ///
+  /// Updates state only: no history entry and no disk write per frame.
+  void previewTransform(
+    String id, {
+    double? x,
+    double? y,
+    double? scale,
+    double? rotation,
+  }) {
+    final index = _current.project.layers.indexWhere((l) => l.id == id);
+    if (index == -1) return;
+
+    final updatedLayers = List<CanvasLayer>.from(_current.project.layers);
+    updatedLayers[index] = updatedLayers[index].copyWith(
+      x: x,
+      y: y,
+      scale: scale,
+      rotation: rotation,
+    );
+    _current = _current.copyWith(
+      project: _current.project.copyWith(layers: updatedLayers),
+    );
+  }
+
+  /// Ends the current gesture: records a single undo step with the
+  /// pre-gesture layers and persists the project once, if anything changed.
+  Future<void> commitInteraction() async {
+    final snapshot = _interactionSnapshot;
+    _interactionSnapshot = null;
+    _current = _current.copyWith(isInteracting: false);
+
+    if (snapshot == null || listEquals(snapshot, _current.project.layers)) {
+      return;
+    }
+
+    await _historyNotifier.pushState(snapshot);
+    final updatedProject = _current.project.copyWith(updatedAt: DateTime.now());
+    _current = _current.copyWith(project: updatedProject);
+    await _projectRepository.saveProject(updatedProject);
   }
 
   /// Appends [layer] to the canvas, assigning it the top stacking [zIndex],
@@ -139,14 +190,11 @@ class CanvasNotifier extends _$CanvasNotifier {
     double? y,
     double? scale,
     double? rotation,
-    bool recordHistory = true,
   }) async {
     final index = _current.project.layers.indexWhere((l) => l.id == id);
     if (index == -1) return;
 
-    if (recordHistory) {
-      await _historyNotifier.pushState(_current.project.layers);
-    }
+    await _historyNotifier.pushState(_current.project.layers);
 
     final updatedLayers = List<CanvasLayer>.from(_current.project.layers);
     updatedLayers[index] = updatedLayers[index].copyWith(
