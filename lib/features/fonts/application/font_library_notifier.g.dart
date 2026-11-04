@@ -89,7 +89,7 @@ final class FontLibraryNotifierProvider
 }
 
 String _$fontLibraryNotifierHash() =>
-    r'1ad12585ea135e42f5afd475c4aeb4eeb2f65f40';
+    r'ea186b17ba87753967771083a180f1aaf7bfae73';
 
 /// App-wide font library: installed fonts are registered with the engine at
 /// startup, and fonts can be downloaded from the catalog, imported from a
