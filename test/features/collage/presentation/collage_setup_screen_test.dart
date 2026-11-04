@@ -88,7 +88,7 @@ void main() {
       );
       expect(topButton.onPressed, isNull);
 
-      final bottomButton = tester.widget<ElevatedButton>(
+      final bottomButton = tester.widget<ButtonStyleButton>(
         find.byKey(const ValueKey('bottom_create_project_button')),
       );
       expect(bottomButton.onPressed, isNull);

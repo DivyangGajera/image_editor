@@ -12,5 +12,9 @@ abstract final class AppConstants {
 
   /// Rendering & export defaults
   static const int defaultExportQuality = 95;
-  static const String appTitle = 'Offline Image Editor';
+  /// Full product name shown in-app (app bar, about, share text).
+  static const String appTitle = 'Chitred: The Photo Editor';
+
+  /// Short brand name used for the launcher label, gallery album and watermark default.
+  static const String appShortName = 'Chitred';
 }

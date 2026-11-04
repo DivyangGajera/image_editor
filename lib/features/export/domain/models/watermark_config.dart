@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:image_editor/core/constants/app_constants.dart';
 
 /// Positioning strategy for applying watermarks on the exported canvas.
 enum WatermarkPosition {
@@ -30,7 +31,7 @@ class WatermarkConfig {
   const WatermarkConfig({
     this.isEnabled = false,
     this.type = WatermarkType.text,
-    this.text = 'Offline Image Editor',
+    this.text = AppConstants.appShortName,
     this.logoAssetOrFilePath,
     this.position = WatermarkPosition.bottomRight,
     this.opacity = 0.75,

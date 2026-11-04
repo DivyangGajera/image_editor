@@ -21,20 +21,19 @@ class SegmentationProgressBar extends ConsumerWidget {
       return const SizedBox.shrink();
     }
 
+    final colors = Theme.of(context).colorScheme;
+
     return Container(
       key: const ValueKey('segmentation_progress_bar'),
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E2C).withAlpha(240),
+        color: colors.surfaceContainerHigh,
         borderRadius: BorderRadius.circular(12.0),
-        border: Border.all(
-          color: const Color(0xFF4E95FF).withAlpha(100),
-          width: 1.0,
-        ),
+        border: Border.all(color: colors.primary.withValues(alpha: 0.4)),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x66000000),
+            color: Color(0x22000000),
             blurRadius: 10.0,
             offset: Offset(0, 4),
           ),
@@ -49,17 +48,14 @@ class SegmentationProgressBar extends ConsumerWidget {
               const SizedBox(
                 width: 16.0,
                 height: 16.0,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.0,
-                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4E95FF)),
-                ),
+                child: CircularProgressIndicator(strokeWidth: 2.0),
               ),
               const SizedBox(width: 12.0),
               Expanded(
                 child: Text(
                   message,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: colors.onSurface,
                     fontSize: 13.0,
                     fontWeight: FontWeight.w500,
                   ),
@@ -68,8 +64,8 @@ class SegmentationProgressBar extends ConsumerWidget {
               if (state.progress != null)
                 Text(
                   '${(state.progress! * 100).toInt()}%',
-                  style: const TextStyle(
-                    color: Color(0xFF4E95FF),
+                  style: TextStyle(
+                    color: colors.primary,
                     fontSize: 12.0,
                     fontWeight: FontWeight.bold,
                   ),
@@ -82,8 +78,6 @@ class SegmentationProgressBar extends ConsumerWidget {
             child: LinearProgressIndicator(
               value: state.progress,
               minHeight: 4.0,
-              backgroundColor: const Color(0xFF2E2E40),
-              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF4E95FF)),
             ),
           ),
         ],
