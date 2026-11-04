@@ -42,7 +42,7 @@ class _CollageSetupScreenState extends ConsumerState<CollageSetupScreen> {
       final List<XFile> picked = await _picker.pickMultiImage(limit: 9);
       if (picked.isNotEmpty && mounted) {
         final paths = picked.map((x) => x.path).toList();
-        ref.read(collageNotifierProvider.notifier).addImages(paths);
+        ref.read(collageProvider.notifier).addImages(paths);
       }
     } catch (e) {
       if (mounted) {
@@ -56,7 +56,7 @@ class _CollageSetupScreenState extends ConsumerState<CollageSetupScreen> {
   Future<void> _handleCreateProject() async {
     try {
       final project = await ref
-          .read(collageNotifierProvider.notifier)
+          .read(collageProvider.notifier)
           .createProject();
 
       if (project != null && mounted) {
@@ -77,8 +77,8 @@ class _CollageSetupScreenState extends ConsumerState<CollageSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(collageNotifierProvider);
-    final notifier = ref.read(collageNotifierProvider.notifier);
+    final state = ref.watch(collageProvider);
+    final notifier = ref.read(collageProvider.notifier);
     final engine = ref.watch(collageEngineProvider);
     final colors = Theme.of(context).colorScheme;
 

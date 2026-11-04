@@ -185,22 +185,22 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      final notifier = container.read(historyNotifierProvider(testProjectId).notifier);
+      final notifier = container.read(historyProvider(testProjectId).notifier);
 
-      expect(container.read(historyNotifierProvider(testProjectId)).canUndo, isFalse);
+      expect(container.read(historyProvider(testProjectId)).canUndo, isFalse);
 
       await notifier.pushState(<CanvasLayer>[makeTextLayer(1)]);
-      final stateAfterPush = container.read(historyNotifierProvider(testProjectId));
+      final stateAfterPush = container.read(historyProvider(testProjectId));
       expect(stateAfterPush.canUndo, isTrue);
       expect(stateAfterPush.totalUndoCount, 1);
 
       final undone = await notifier.undo(<CanvasLayer>[makeTextLayer(2)]);
       expect(undone, isNotNull);
-      final stateAfterUndo = container.read(historyNotifierProvider(testProjectId));
+      final stateAfterUndo = container.read(historyProvider(testProjectId));
       expect(stateAfterUndo.canRedo, isTrue);
 
       await notifier.redo(<CanvasLayer>[makeTextLayer(1)]);
-      final stateAfterRedo = container.read(historyNotifierProvider(testProjectId));
+      final stateAfterRedo = container.read(historyProvider(testProjectId));
       expect(stateAfterRedo.canRedo, isFalse);
     });
   });

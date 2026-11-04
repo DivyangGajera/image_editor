@@ -36,6 +36,8 @@ void main() {
           historyManagerProvider(testProjectId).overrideWithValue(historyManager),
         ],
       );
+      // Keep the auto-disposed history provider alive for the whole test.
+      container.listen(historyProvider(testProjectId), (_, _) {});
     });
 
     tearDown(() async {
@@ -57,7 +59,7 @@ void main() {
     }
 
     test('initial state has empty stacks', () {
-      final state = container.read(historyNotifierProvider(testProjectId));
+      final state = container.read(historyProvider(testProjectId));
       expect(state.canUndo, isFalse);
       expect(state.canRedo, isFalse);
       expect(state.totalUndoCount, equals(0));
@@ -67,14 +69,14 @@ void main() {
     });
 
     test('500-step rapid event firing accumulates full 500-step dual-tier history', () async {
-      final notifier = container.read(historyNotifierProvider(testProjectId).notifier);
+      final notifier = container.read(historyProvider(testProjectId).notifier);
 
       // Rapidly fire 500 state changes
       for (int i = 1; i <= 500; i++) {
         await notifier.pushState([makeTextLayer(i)]);
       }
 
-      final state = container.read(historyNotifierProvider(testProjectId));
+      final state = container.read(historyProvider(testProjectId));
       expect(state.canUndo, isTrue);
       expect(state.canRedo, isFalse);
       expect(state.totalUndoCount, equals(500));
@@ -85,14 +87,14 @@ void main() {
     });
 
     test('complete 500-step rollback and redo cycles correctly across RAM & disk tiers', () async {
-      final notifier = container.read(historyNotifierProvider(testProjectId).notifier);
+      final notifier = container.read(historyProvider(testProjectId).notifier);
 
       // 1. Push 500 states
       for (int i = 1; i <= 500; i++) {
         await notifier.pushState([makeTextLayer(i)]);
       }
 
-      expect(container.read(historyNotifierProvider(testProjectId)).totalUndoCount, equals(500));
+      expect(container.read(historyProvider(testProjectId)).totalUndoCount, equals(500));
 
       // 2. Rollback all 500 steps in reverse order
       List<CanvasLayer> currentLayers = [
@@ -108,7 +110,7 @@ void main() {
         currentLayers = reverted;
       }
 
-      var state = container.read(historyNotifierProvider(testProjectId));
+      var state = container.read(historyProvider(testProjectId));
       expect(state.totalUndoCount, equals(0));
       expect(state.canUndo, isFalse);
       expect(state.canRedo, isTrue);
@@ -127,7 +129,7 @@ void main() {
         currentLayers = restored;
       }
 
-      state = container.read(historyNotifierProvider(testProjectId));
+      state = container.read(historyProvider(testProjectId));
       expect(state.redoCount, equals(0));
       expect(state.canRedo, isFalse);
       expect(state.canUndo, isTrue);
@@ -135,7 +137,7 @@ void main() {
     });
 
     test('pushing new state after undo truncates redo stack correctly', () async {
-      final notifier = container.read(historyNotifierProvider(testProjectId).notifier);
+      final notifier = container.read(historyProvider(testProjectId).notifier);
 
       // Push 50 states
       for (int i = 1; i <= 50; i++) {
@@ -149,7 +151,7 @@ void main() {
         current = res!;
       }
 
-      var state = container.read(historyNotifierProvider(testProjectId));
+      var state = container.read(historyProvider(testProjectId));
       expect(state.totalUndoCount, equals(30));
       expect(state.redoCount, equals(20));
       expect(state.canRedo, isTrue);
@@ -159,24 +161,24 @@ void main() {
         const TextLayer(id: 'divergent', x: 0.9, y: 0.9, text: 'Branch State'),
       ]);
 
-      state = container.read(historyNotifierProvider(testProjectId));
+      state = container.read(historyProvider(testProjectId));
       expect(state.totalUndoCount, equals(31));
       expect(state.redoCount, equals(0));
       expect(state.canRedo, isFalse);
     });
 
     test('clear purges all history states and resets metrics', () async {
-      final notifier = container.read(historyNotifierProvider(testProjectId).notifier);
+      final notifier = container.read(historyProvider(testProjectId).notifier);
 
       for (int i = 1; i <= 10; i++) {
         await notifier.pushState([makeTextLayer(i)]);
       }
 
-      expect(container.read(historyNotifierProvider(testProjectId)).canUndo, isTrue);
+      expect(container.read(historyProvider(testProjectId)).canUndo, isTrue);
 
       await notifier.clear();
 
-      final state = container.read(historyNotifierProvider(testProjectId));
+      final state = container.read(historyProvider(testProjectId));
       expect(state.canUndo, isFalse);
       expect(state.canRedo, isFalse);
       expect(state.totalUndoCount, equals(0));

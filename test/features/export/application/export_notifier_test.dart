@@ -100,12 +100,12 @@ void main() {
           )).thenAnswer((_) async => '/storage/Exports/p1.png');
 
       final result = await container
-          .read(exportNotifierProvider.notifier)
+          .read(exportProvider.notifier)
           .exportProject(project: project, config: config, filename: 'p1.png');
 
       expect(result, equals('/storage/Exports/p1.png'));
 
-      final state = container.read(exportNotifierProvider);
+      final state = container.read(exportProvider);
       expect(state.isExporting, isFalse);
       expect(state.exportedFilePath, equals('/storage/Exports/p1.png'));
       expect(state.exportedBytes, equals(fakeBytes));
@@ -138,22 +138,22 @@ void main() {
           )).thenThrow(Exception('GPU render timeout'));
 
       expect(
-        () => container.read(exportNotifierProvider.notifier).exportProject(
+        () => container.read(exportProvider.notifier).exportProject(
               project: project,
               config: const ExportConfig(),
             ),
         throwsA(isA<Exception>()),
       );
 
-      final state = container.read(exportNotifierProvider);
+      final state = container.read(exportProvider);
       expect(state.isExporting, isFalse);
       expect(state.error, contains('GPU render timeout'));
     });
 
     test('clear resets state to default', () {
-      final notifier = container.read(exportNotifierProvider.notifier);
+      final notifier = container.read(exportProvider.notifier);
       notifier.clear();
-      expect(container.read(exportNotifierProvider), equals(const ExportState()));
+      expect(container.read(exportProvider), equals(const ExportState()));
     });
   });
 }

@@ -52,6 +52,8 @@ void main() {
           collageEngineProvider.overrideWithValue(mockEngine),
         ],
       );
+      // Collage state is session-scoped (auto-disposed); keep it alive per test.
+      container.listen(collageProvider, (_, _) {});
     });
 
     tearDown(() {
@@ -59,73 +61,73 @@ void main() {
     });
 
     test('addImages adds unique paths up to 9 maximum', () {
-      final notifier = container.read(collageNotifierProvider.notifier);
+      final notifier = container.read(collageProvider.notifier);
 
       notifier.addImages(['img1.png', 'img2.png']);
-      expect(container.read(collageNotifierProvider).selectedImagePaths,
+      expect(container.read(collageProvider).selectedImagePaths,
           equals(['img1.png', 'img2.png']));
-      expect(container.read(collageNotifierProvider).canCreate, isTrue);
+      expect(container.read(collageProvider).canCreate, isTrue);
 
       // Duplicate should not be re-added
       notifier.addImages(['img2.png', 'img3.png']);
-      expect(container.read(collageNotifierProvider).selectedImagePaths,
+      expect(container.read(collageProvider).selectedImagePaths,
           equals(['img1.png', 'img2.png', 'img3.png']));
 
       // Adding 10 items should clamp to 9 total
       notifier.addImages(List.generate(10, (i) => 'extra_$i.png'));
-      expect(container.read(collageNotifierProvider).selectedImagePaths.length,
+      expect(container.read(collageProvider).selectedImagePaths.length,
           equals(9));
     });
 
     test('removeImage removes image at specified index', () {
-      final notifier = container.read(collageNotifierProvider.notifier);
+      final notifier = container.read(collageProvider.notifier);
       notifier.addImages(['a.png', 'b.png', 'c.png']);
 
       notifier.removeImage(1); // Remove 'b.png'
-      expect(container.read(collageNotifierProvider).selectedImagePaths,
+      expect(container.read(collageProvider).selectedImagePaths,
           equals(['a.png', 'c.png']));
 
       notifier.removeImage(1); // Remove 'c.png'
-      expect(container.read(collageNotifierProvider).selectedImagePaths,
+      expect(container.read(collageProvider).selectedImagePaths,
           equals(['a.png']));
-      expect(container.read(collageNotifierProvider).canCreate, isFalse);
+      expect(container.read(collageProvider).canCreate, isFalse);
     });
 
     test('reorderImages reorders elements correctly', () {
-      final notifier = container.read(collageNotifierProvider.notifier);
+      final notifier = container.read(collageProvider.notifier);
       notifier.addImages(['first.png', 'second.png', 'third.png']);
 
       notifier.reorderImages(0, 3); // Move first to last
-      expect(container.read(collageNotifierProvider).selectedImagePaths,
+      expect(container.read(collageProvider).selectedImagePaths,
           equals(['second.png', 'third.png', 'first.png']));
     });
 
     test('updates config parameters (preset, border width, color, margin, spacing)', () {
-      final notifier = container.read(collageNotifierProvider.notifier);
+      final notifier = container.read(collageProvider.notifier);
 
       notifier.setLayoutType(CollageLayoutType.verticalStrip);
-      expect(container.read(collageNotifierProvider).config.layoutType,
+      expect(container.read(collageProvider).config.layoutType,
           equals(CollageLayoutType.verticalStrip));
 
       notifier.setBorderWidth(15.0);
-      expect(container.read(collageNotifierProvider).config.borderWidth,
+      expect(container.read(collageProvider).config.borderWidth,
           equals(15.0));
 
       notifier.setBorderColor(0xFFFFD700);
-      expect(container.read(collageNotifierProvider).config.borderColorValue,
+      expect(container.read(collageProvider).config.borderColorValue,
           equals(0xFFFFD700));
 
       notifier.setSpacing(20.0);
-      expect(container.read(collageNotifierProvider).config.spacing,
+      expect(container.read(collageProvider).config.spacing,
           equals(20.0));
 
       notifier.setOuterMargin(30.0);
-      expect(container.read(collageNotifierProvider).config.outerMargin,
+      expect(container.read(collageProvider).config.outerMargin,
           equals(30.0));
     });
 
     test('createProject returns null when canCreate is false', () async {
-      final notifier = container.read(collageNotifierProvider.notifier);
+      final notifier = container.read(collageProvider.notifier);
       final result = await notifier.createProject();
       expect(result, isNull);
     });
@@ -149,13 +151,13 @@ void main() {
         ),
       ).thenAnswer((_) async => testProject);
 
-      final notifier = container.read(collageNotifierProvider.notifier);
+      final notifier = container.read(collageProvider.notifier);
       notifier.addImages(['img1.png', 'img2.png']);
 
       final project = await notifier.createProject(title: 'My Collage');
       expect(project, equals(testProject));
-      expect(container.read(collageNotifierProvider).isCreating, isFalse);
-      expect(container.read(collageNotifierProvider).error, isNull);
+      expect(container.read(collageProvider).isCreating, isFalse);
+      expect(container.read(collageProvider).error, isNull);
     });
 
     test('createProject sets error state when engine throws', () async {
@@ -167,7 +169,7 @@ void main() {
         ),
       ).thenThrow(Exception('Failed to process cell'));
 
-      final notifier = container.read(collageNotifierProvider.notifier);
+      final notifier = container.read(collageProvider.notifier);
       notifier.addImages(['img1.png', 'img2.png']);
 
       await expectLater(
@@ -175,19 +177,19 @@ void main() {
         throwsA(isA<Exception>()),
       );
 
-      expect(container.read(collageNotifierProvider).isCreating, isFalse);
-      expect(container.read(collageNotifierProvider).error,
+      expect(container.read(collageProvider).isCreating, isFalse);
+      expect(container.read(collageProvider).error,
           contains('Failed to process cell'));
     });
 
     test('reset restores state to default', () {
-      final notifier = container.read(collageNotifierProvider.notifier);
+      final notifier = container.read(collageProvider.notifier);
       notifier.addImages(['img1.png', 'img2.png']);
       notifier.setBorderWidth(25.0);
 
       notifier.reset();
-      expect(container.read(collageNotifierProvider).selectedImagePaths, isEmpty);
-      expect(container.read(collageNotifierProvider).config.borderWidth, equals(4.0));
+      expect(container.read(collageProvider).selectedImagePaths, isEmpty);
+      expect(container.read(collageProvider).config.borderWidth, equals(4.0));
     });
   });
 }

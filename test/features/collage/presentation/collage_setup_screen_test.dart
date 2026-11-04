@@ -141,7 +141,7 @@ void main() {
       final element = tester.element(find.byType(CollageSetupScreen));
       final container = ProviderScope.containerOf(element);
       expect(
-        container.read(collageNotifierProvider).config.layoutType,
+        container.read(collageProvider).config.layoutType,
         equals(CollageLayoutType.horizontalStrip),
       );
 
@@ -151,7 +151,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        container.read(collageNotifierProvider).config.layoutType,
+        container.read(collageProvider).config.layoutType,
         equals(CollageLayoutType.verticalStrip),
       );
     });
@@ -168,7 +168,7 @@ void main() {
       final element = tester.element(find.byType(CollageSetupScreen));
       final container = ProviderScope.containerOf(element);
       expect(
-        container.read(collageNotifierProvider).config.borderColorValue,
+        container.read(collageProvider).config.borderColorValue,
         equals(0xFFFFD700),
       );
     });

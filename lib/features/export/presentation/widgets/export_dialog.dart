@@ -54,7 +54,7 @@ class _ExportDialogState extends ConsumerState<ExportDialog> {
   Future<void> _handleExport() async {
     try {
       final savedPath = await ref
-          .read(exportNotifierProvider.notifier)
+          .read(exportProvider.notifier)
           .exportProject(project: widget.project, config: _config);
 
       if (savedPath != null && mounted) {
@@ -72,7 +72,7 @@ class _ExportDialogState extends ConsumerState<ExportDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final exportState = ref.watch(exportNotifierProvider);
+    final exportState = ref.watch(exportProvider);
 
     return Container(
       constraints: BoxConstraints(

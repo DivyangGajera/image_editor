@@ -15,7 +15,7 @@ class SegmentationProgressBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(segmentationNotifierProvider);
+    final state = ref.watch(segmentationProvider);
 
     if (!state.isProcessing) {
       return const SizedBox.shrink();

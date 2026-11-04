@@ -65,6 +65,7 @@ void main() {
         getBaseDir: () async => tempDir,
         projectsBox: testBox,
       );
+      await projectRepository.saveProject(testProject);
     });
 
     tearDown(() async {
@@ -91,6 +92,8 @@ void main() {
           historyManagerProvider(testProject.id).overrideWithValue(historyManager),
         ],
       );
+      // The toolbar mutates the canvas, which must be loaded and kept alive.
+      testContainer!.listen(canvasProvider(testProject.id), (_, _) {});
 
       return UncontrolledProviderScope(
         container: testContainer!,
@@ -98,7 +101,7 @@ void main() {
           home: Scaffold(
             body: ImageEditingToolbar(
               layer: layer,
-              project: testProject,
+              projectId: testProject.id,
               onLayerChanged: onLayerChanged,
               onRemoveBackground: onRemoveBackground,
             ),
@@ -143,7 +146,7 @@ void main() {
       expect(updatedLayer, isNotNull);
       expect(updatedLayer!.activeFilter, equals('grayscale'));
 
-      final canvasState = testContainer!.read(canvasNotifierProvider(testProject));
+      final canvasState = testContainer!.read(canvasProvider(testProject.id)).requireValue;
       final currentLayer = canvasState.project.layers.first as ImageLayer;
       expect(currentLayer.activeFilter, equals('grayscale'));
     });
@@ -176,7 +179,7 @@ void main() {
       expect(updatedLayer, isNotNull);
       expect(updatedLayer!.activeFilter, isNull);
 
-      final canvasState = testContainer!.read(canvasNotifierProvider(testProject));
+      final canvasState = testContainer!.read(canvasProvider(testProject.id)).requireValue;
       final currentLayer = canvasState.project.layers.first as ImageLayer;
       expect(currentLayer.activeFilter, isNull);
     });
@@ -202,7 +205,7 @@ void main() {
       expect(updatedLayer, isNotNull);
       expect(updatedLayer!.isFlippedHorizontally, isTrue);
 
-      final canvasState = testContainer!.read(canvasNotifierProvider(testProject));
+      final canvasState = testContainer!.read(canvasProvider(testProject.id)).requireValue;
       final currentLayer = canvasState.project.layers.first as ImageLayer;
       expect(currentLayer.isFlippedHorizontally, isTrue);
     });

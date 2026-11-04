@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_editor/features/layers/domain/models/image_layer.dart';
 import 'package:image_editor/features/segmentation/application/background_removal_service.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+part 'segmentation_notifier.g.dart';
 
 /// State representation for background extraction operations.
 @immutable
@@ -49,7 +51,8 @@ class SegmentationState {
 }
 
 /// Riverpod notifier managing state and execution of offline background extractions.
-class SegmentationNotifier extends Notifier<SegmentationState> {
+@Riverpod(keepAlive: true)
+class SegmentationNotifier extends _$SegmentationNotifier {
   @override
   SegmentationState build() => const SegmentationState();
 
@@ -90,9 +93,3 @@ class SegmentationNotifier extends Notifier<SegmentationState> {
     }
   }
 }
-
-/// Riverpod provider for [SegmentationNotifier].
-final segmentationNotifierProvider =
-    NotifierProvider<SegmentationNotifier, SegmentationState>(
-  SegmentationNotifier.new,
-);

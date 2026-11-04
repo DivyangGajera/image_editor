@@ -67,6 +67,8 @@ void main() {
         projectId: project.id,
         historyBox: historyBox,
       );
+
+      await projectRepository.saveProject(project);
     });
 
     tearDown(() async {
@@ -86,7 +88,14 @@ void main() {
             body: SizedBox(
               width: 800.0,
               height: 800.0,
-              child: CanvasView(project: project),
+              child: Consumer(
+                builder: (context, ref, _) {
+                  final loaded = ref.watch(canvasProvider(project.id)).hasValue;
+                  return loaded
+                      ? CanvasView(projectId: project.id)
+                      : const SizedBox.shrink();
+                },
+              ),
             ),
           ),
         ),
@@ -129,7 +138,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // State is selected
-      expect(container.read(canvasNotifierProvider(project)).selectedLayerId, 'layer-1');
+      expect(container.read(canvasProvider(project.id)).requireValue.selectedLayerId, 'layer-1');
 
       // Delete handle and corner anchors appear
       expect(find.byIcon(Icons.close), findsOneWidget);
@@ -161,7 +170,7 @@ void main() {
       // Layer 1 is removed, layer 2 remains
       expect(find.text('Title Heading'), findsNothing);
       expect(find.text('Subtitle Content'), findsOneWidget);
-      expect(container.read(canvasNotifierProvider(project)).project.layers.length, 1);
+      expect(container.read(canvasProvider(project.id)).requireValue.project.layers.length, 1);
     });
 
     testWidgets('tapping canvas background deselects active layer', (tester) async {
@@ -186,7 +195,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Selection cleared and handles dismissed
-      expect(container.read(canvasNotifierProvider(project)).selectedLayerId, isNull);
+      expect(container.read(canvasProvider(project.id)).requireValue.selectedLayerId, isNull);
       expect(find.byIcon(Icons.close), findsNothing);
     });
 
@@ -202,8 +211,8 @@ void main() {
       await tester.pumpWidget(createTestApp(container));
       await tester.pumpAndSettle();
 
-      final initialX = container.read(canvasNotifierProvider(project)).project.layers.first.x;
-      final initialY = container.read(canvasNotifierProvider(project)).project.layers.first.y;
+      final initialX = container.read(canvasProvider(project.id)).requireValue.project.layers.first.x;
+      final initialY = container.read(canvasProvider(project.id)).requireValue.project.layers.first.y;
 
       // Tap to select layer 1
       await tester.tap(find.text('Title Heading'));
@@ -216,7 +225,7 @@ void main() {
       });
       await tester.pumpAndSettle();
 
-      final updatedLayer = container.read(canvasNotifierProvider(project)).project.layers.first;
+      final updatedLayer = container.read(canvasProvider(project.id)).requireValue.project.layers.first;
       expect(updatedLayer.x, isNot(equals(initialX)));
       expect(updatedLayer.y, isNot(equals(initialY)));
       expect(updatedLayer.x, greaterThan(initialX));

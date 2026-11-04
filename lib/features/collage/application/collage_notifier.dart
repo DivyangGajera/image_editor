@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_editor/features/canvas/domain/models/project_model.dart';
 import 'package:image_editor/features/collage/application/collage_engine.dart';
 import 'package:image_editor/features/collage/domain/models/models.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+part 'collage_notifier.g.dart';
 
 /// State representation for the collage creation setup session.
 @immutable
@@ -67,7 +69,8 @@ class CollageState {
 }
 
 /// Riverpod notifier managing collage setup, layout selection, and creation.
-class CollageNotifier extends Notifier<CollageState> {
+@riverpod
+class CollageNotifier extends _$CollageNotifier {
   @override
   CollageState build() => const CollageState();
 
@@ -184,7 +187,3 @@ class CollageNotifier extends Notifier<CollageState> {
     state = const CollageState();
   }
 }
-
-/// Riverpod provider for [CollageNotifier].
-final collageNotifierProvider =
-    NotifierProvider<CollageNotifier, CollageState>(CollageNotifier.new);
