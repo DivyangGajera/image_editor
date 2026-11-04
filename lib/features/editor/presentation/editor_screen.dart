@@ -233,6 +233,11 @@ class _EditorWorkspace extends ConsumerWidget {
         onEditText: () {
           if (layer is TextLayer) _editText(context, ref, layer);
         },
+        onCrop: () => _guard(context, 'Could not crop the photo.', () async {
+          await ref.read(editorCommandsProvider(projectId)).cropImage(layer.id);
+        }),
+        onResetCrop: () =>
+            ref.read(editorCommandsProvider(projectId)).resetCrop(layer.id),
       );
     } else {
       bottomBar = MainToolBar(

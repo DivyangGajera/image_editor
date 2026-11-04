@@ -133,6 +133,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('ctx_flip')), findsOneWidget);
+    expect(find.byKey(const ValueKey('ctx_crop')), findsOneWidget);
+    expect(find.byKey(const ValueKey('ctx_reset_crop')), findsNothing, reason: 'not cropped');
     expect(find.byKey(const ValueKey('ctx_remove_bg')), findsOneWidget);
     expect(find.byKey(const ValueKey('ctx_edit_text')), findsNothing);
 
@@ -148,6 +150,29 @@ void main() {
     expect(undo.onPressed, isNotNull);
     await tapAndSettle(tester, find.byKey(const ValueKey('editor_undo')));
     expect((canvas().project.layers.first as ImageLayer).activeFilter, isNull);
+  });
+
+  testWidgets('a cropped photo offers Uncrop, which restores the original', (tester) async {
+    await tester.runAsync(
+      () => createProject(const [
+        ImageLayer(
+          id: 'photo',
+          x: 0.5,
+          y: 0.5,
+          relativeImagePath: 'projects/editor-screen/images/img.jpg',
+          originalImagePath: 'projects/editor-screen/images/orig.jpg',
+        ),
+      ]),
+    );
+    await pumpEditor(tester);
+    container.read(canvasProvider(projectId).notifier).selectLayer('photo');
+    await tester.pumpAndSettle();
+
+    await tapAndSettle(tester, find.byKey(const ValueKey('ctx_reset_crop')));
+
+    final layer = canvas().project.layers.single as ImageLayer;
+    expect(layer.relativeImagePath, 'projects/editor-screen/images/orig.jpg');
+    expect(find.byKey(const ValueKey('ctx_reset_crop')), findsNothing);
   });
 
   testWidgets('text layers offer Edit; duplicate and delete work from the context bar',

@@ -75,8 +75,8 @@ class EditorCommands {
   /// Runs offline background removal on the image layer [layerId] and places
   /// the cutout over it. Returns false if the layer is not an image.
   Future<bool> removeBackground(String layerId) async {
-    final layer = _canvasState().project.layers.where((l) => l.id == layerId).firstOrNull;
-    if (layer is! ImageLayer) return false;
+    final layer = _findImage(layerId);
+    if (layer == null) return false;
 
     final source = await _projectRepository.resolveRelativePath(layer.relativeImagePath);
     final cutout = await _segmentation().extractBackground(
@@ -87,6 +87,37 @@ class EditorCommands {
 
     await _canvas().applyCutout(layerId, cutout);
     return true;
+  }
+
+  /// Re-crops image layer [layerId] starting from its uncropped original, so
+  /// earlier crops can be widened again. Position, scale, rotation, flip and
+  /// filter are kept. Returns false if cancelled or the layer is not an image.
+  Future<bool> cropImage(String layerId) async {
+    final layer = _findImage(layerId);
+    if (layer == null) return false;
+
+    // Images without a recorded original (cutouts, collage cells) start
+    // cropping from their current file, which then becomes the original.
+    final original = layer.originalImagePath ?? layer.relativeImagePath;
+    final cropped = await _imageImport.recrop(projectId: projectId, originalPath: original);
+    if (cropped == null) return false;
+
+    await _canvas().updateLayer(
+      layer.copyWith(relativeImagePath: cropped.relativePath, originalImagePath: original),
+    );
+    return true;
+  }
+
+  /// Restores the uncropped original of image layer [layerId] (undoable).
+  Future<void> resetCrop(String layerId) async {
+    final layer = _findImage(layerId);
+    if (layer == null || !layer.isCropped) return;
+    await _canvas().updateLayer(layer.copyWith(relativeImagePath: layer.originalImagePath));
+  }
+
+  ImageLayer? _findImage(String layerId) {
+    final layer = _canvasState().project.layers.where((l) => l.id == layerId).firstOrNull;
+    return layer is ImageLayer ? layer : null;
   }
 
   /// Default [AssetSizeReader]: reads only the image header of a bundled asset.
