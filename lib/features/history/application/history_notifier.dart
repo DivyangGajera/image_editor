@@ -85,11 +85,16 @@ final historyManagerProvider =
 });
 
 /// Riverpod notifier coordinating canvas undo/redo history operations.
-class HistoryNotifier extends FamilyNotifier<HistoryState, String> {
-  late final HistoryManager _manager;
+class HistoryNotifier extends Notifier<HistoryState> {
+  HistoryNotifier(this.arg);
+
+  /// The project ID whose history this notifier manages.
+  final String arg;
+
+  late HistoryManager _manager;
 
   @override
-  HistoryState build(String arg) {
+  HistoryState build() {
     _manager = ref.watch(historyManagerProvider(arg));
     return _computeState();
   }

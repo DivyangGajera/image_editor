@@ -53,7 +53,7 @@ void main() {
       );
 
       container = ProviderContainer(
-        overrides: <Override>[
+        overrides: [
           projectRepositoryProvider.overrideWithValue(projectRepository),
           historyManagerProvider(initialProject.id).overrideWithValue(historyManager),
         ],
