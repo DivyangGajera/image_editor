@@ -6,13 +6,11 @@
     <!-- Modern media permissions for Android 13+ (API level 33+) -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
-    <!-- Legacy storage permissions for devices running Android 12 and below (API <= 32) -->
+    <!-- Legacy read permission for devices running Android 12 and below (API <= 32).
+         Writing exports goes through MediaStore, which needs no write permission. -->
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
-    <uses-permission
-        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-        android:maxSdkVersion="28" />
 
     <application
         android:label="Chitred"
