@@ -78,6 +78,15 @@ class ProjectRepository {
     );
   }
 
+  /// Deletes the file at [relativePath] if it exists (e.g. an imported
+  /// original whose crop was cancelled).
+  Future<void> deleteFile(String relativePath) async {
+    final file = await resolveRelativePath(relativePath);
+    if (await file.exists()) {
+      await file.delete();
+    }
+  }
+
   /// Project-relative path of the gallery thumbnail of [projectId].
   static String thumbnailRelativePath(String projectId) => p.posix.join(
         StorageKeys.projectsDirectory,
@@ -119,7 +128,12 @@ class ProjectRepository {
       layers: [
         for (final layer in source.layers)
           if (layer is ImageLayer)
-            layer.copyWith(relativeImagePath: remap(layer.relativeImagePath))
+            layer.copyWith(
+              relativeImagePath: remap(layer.relativeImagePath),
+              originalImagePath: layer.originalImagePath == null
+                  ? null
+                  : remap(layer.originalImagePath!),
+            )
           else
             layer,
       ],

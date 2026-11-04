@@ -237,7 +237,13 @@ void main() {
         createdAt: DateTime(2026, 1, 1),
         updatedAt: DateTime(2026, 1, 2),
         layers: [
-          ImageLayer(id: 'img', x: 0.5, y: 0.5, relativeImagePath: imagePath),
+          ImageLayer(
+            id: 'img',
+            x: 0.5,
+            y: 0.5,
+            relativeImagePath: imagePath,
+            originalImagePath: 'projects/orig/images/original.png',
+          ),
           const StickerLayer(id: 's', x: 0.1, y: 0.1, assetPath: 'assets/stickers/badges/b.png'),
         ],
       );
@@ -255,6 +261,7 @@ void main() {
       expect(copy.createdAt, DateTime(2026, 11, 4));
       final copiedImage = copy.layers.first as ImageLayer;
       expect(copiedImage.relativeImagePath, 'projects/copy/images/a.png');
+      expect(copiedImage.originalImagePath, 'projects/copy/images/original.png');
       expect((copy.layers.last as StickerLayer).assetPath, 'assets/stickers/badges/b.png');
 
       final copiedFile = await repository.resolveRelativePath(copiedImage.relativeImagePath);
@@ -268,6 +275,14 @@ void main() {
       // The original is untouched and independent.
       await repository.deleteProject('copy');
       expect((await repository.resolveRelativePath(imagePath)).existsSync(), isTrue);
+    });
+
+    test('deleteFile removes an existing file and ignores missing ones', () async {
+      final path = await repository.saveLayerImage('del', Uint8List.fromList([1]), 'x.png');
+
+      await repository.deleteFile(path);
+      expect((await repository.resolveRelativePath(path)).existsSync(), isFalse);
+      await expectLater(repository.deleteFile(path), completes);
     });
   });
 }
