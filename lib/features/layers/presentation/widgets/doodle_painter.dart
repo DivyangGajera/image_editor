@@ -1,18 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:image_editor/features/layers/application/doodle_geometry.dart';
 import 'package:image_editor/features/layers/domain/models/models.dart';
 
 /// Scalable vector painter rendering smoothed Bezier curves for a [DoodleLayer].
 ///
 /// Uses midpoint quadratic Bezier interpolation ([Path.quadraticBezierTo]) to produce
 /// smooth, anti-aliased freehand strokes and renders optional neon glow filters.
+///
+/// By default it paints into the doodle's local box (see [DoodleGeometry]),
+/// offsetting points by the stroke padding. Set [inLocalBox] to false to paint
+/// raw canvas-normalized points over the whole canvas (live drawing preview).
 class DoodlePainter extends CustomPainter {
   const DoodlePainter({
     required this.layer,
     required this.canvasSize,
+    this.inLocalBox = true,
   });
 
   final DoodleLayer layer;
   final Size canvasSize;
+  final bool inLocalBox;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -21,10 +28,12 @@ class DoodlePainter extends CustomPainter {
 
     final w = canvasSize.width;
     final h = canvasSize.height;
+    final pad = inLocalBox ? DoodleGeometry.padding(layer) : 0.0;
+    Offset at(List<double> point) => Offset(point[0] * w + pad, point[1] * h + pad);
 
     // Single point: render as a rounded dot
     if (points.length == 1) {
-      final center = Offset(points[0][0] * w, points[0][1] * h);
+      final center = at(points[0]);
       final radius = layer.strokeWidth / 2.0;
 
       if (layer.hasGlow) {
@@ -44,16 +53,16 @@ class DoodlePainter extends CustomPainter {
 
     // Build smoothed quadratic Bezier path
     final path = Path();
-    final firstPoint = Offset(points[0][0] * w, points[0][1] * h);
+    final firstPoint = at(points[0]);
     path.moveTo(firstPoint.dx, firstPoint.dy);
 
     if (points.length == 2) {
-      final secondPoint = Offset(points[1][0] * w, points[1][1] * h);
+      final secondPoint = at(points[1]);
       path.lineTo(secondPoint.dx, secondPoint.dy);
     } else {
       for (var i = 1; i < points.length - 1; i++) {
-        final pCurrent = Offset(points[i][0] * w, points[i][1] * h);
-        final pNext = Offset(points[i + 1][0] * w, points[i + 1][1] * h);
+        final pCurrent = at(points[i]);
+        final pNext = at(points[i + 1]);
         final midPoint = Offset(
           (pCurrent.dx + pNext.dx) / 2.0,
           (pCurrent.dy + pNext.dy) / 2.0,
@@ -62,7 +71,7 @@ class DoodlePainter extends CustomPainter {
         path.quadraticBezierTo(pCurrent.dx, pCurrent.dy, midPoint.dx, midPoint.dy);
       }
 
-      final lastPoint = Offset(points.last[0] * w, points.last[1] * h);
+      final lastPoint = at(points.last);
       path.lineTo(lastPoint.dx, lastPoint.dy);
     }
 
@@ -70,7 +79,7 @@ class DoodlePainter extends CustomPainter {
     if (layer.hasGlow) {
       final glowPaint = Paint()
         ..color = Color(layer.strokeColorValue).withValues(alpha: 0.6)
-        ..strokeWidth = layer.strokeWidth + 8.0
+        ..strokeWidth = layer.strokeWidth + DoodleGeometry.glowExtent
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round
@@ -91,6 +100,8 @@ class DoodlePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant DoodlePainter oldDelegate) {
-    return oldDelegate.layer != layer || oldDelegate.canvasSize != canvasSize;
+    return oldDelegate.layer != layer ||
+        oldDelegate.canvasSize != canvasSize ||
+        oldDelegate.inLocalBox != inLocalBox;
   }
 }

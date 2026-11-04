@@ -10,6 +10,7 @@ import 'package:image_editor/core/utils/color_filters.dart';
 import 'package:image_editor/features/canvas/data/project_repository.dart';
 import 'package:image_editor/features/canvas/domain/models/models.dart';
 import 'package:image_editor/features/export/domain/models/models.dart';
+import 'package:image_editor/features/layers/application/doodle_geometry.dart';
 import 'package:image_editor/features/layers/domain/models/models.dart';
 import 'package:image_editor/features/layers/presentation/widgets/doodle_painter.dart';
 import 'package:path/path.dart' as p;
@@ -60,13 +61,6 @@ class CanvasExportService {
     for (final layer in sortedLayers) {
       if (!layer.isVisible) continue;
 
-      if (layer is DoodleLayer) {
-        // Doodle layers use canvas-wide normalized points
-        final painter = DoodlePainter(layer: layer, canvasSize: targetSize);
-        painter.paint(canvas, targetSize);
-        continue;
-      }
-
       canvas.save();
 
       // Transform coordinate space to layer center
@@ -76,7 +70,12 @@ class CanvasExportService {
       canvas.rotate(layer.rotation);
       canvas.scale(layer.scale);
 
-      if (layer is ImageLayer) {
+      if (layer is DoodleLayer) {
+        // Same local box as on screen, centered on the layer position.
+        final size = DoodleGeometry.localSize(layer, targetSize);
+        canvas.translate(-size.width / 2.0, -size.height / 2.0);
+        DoodlePainter(layer: layer, canvasSize: targetSize).paint(canvas, size);
+      } else if (layer is ImageLayer) {
         await _drawImageLayer(canvas, layer);
       } else if (layer is TextLayer) {
         _drawTextLayer(canvas, layer);

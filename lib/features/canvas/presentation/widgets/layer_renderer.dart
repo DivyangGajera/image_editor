@@ -79,7 +79,7 @@ class LayerRenderer extends ConsumerWidget {
 
   Widget _renderDoodleLayer(BuildContext context, DoodleLayer layer) {
     return CustomPaint(
-      size: canvasSize,
+      size: DoodleGeometry.localSize(layer, canvasSize),
       painter: DoodlePainter(layer: layer, canvasSize: canvasSize),
     );
   }
