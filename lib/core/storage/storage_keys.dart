@@ -14,6 +14,9 @@ abstract final class StorageKeys {
 
   /// Subdirectory inside project folder for project-specific assets
   static const String assetsDirectory = 'assets';
+
+  /// File name of a project's gallery thumbnail inside its project folder.
+  static const String thumbnailFileName = 'thumbnail.png';
 }
 
 /// Registry of every Hive `typeId` used by the app.

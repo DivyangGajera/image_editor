@@ -34,6 +34,24 @@ class CropAspectRatioPreset9x16 implements CropAspectRatioPresetData {
   String get name => '9:16';
 }
 
+/// A photo saved into a project sandbox by [ImageImportService.importPhoto].
+class ImportedPhoto {
+  const ImportedPhoto({
+    required this.relativePath,
+    required this.width,
+    required this.height,
+  });
+
+  /// Project-relative path of the saved image.
+  final String relativePath;
+
+  /// Pixel size after normalization.
+  final int width;
+  final int height;
+
+  Size get size => Size(width.toDouble(), height.toDouble());
+}
+
 /// Service orchestrating image acquisition from Camera/Gallery,
 /// edge-to-edge aspect ratio cropping, and project sandbox persistence.
 class ImageImportService {
@@ -63,16 +81,13 @@ class ImageImportService {
 
   /// Picks an image from [source], lets the user crop it with preset ratios,
   /// normalizes it off the UI isolate (upright, at most
-  /// [ImageNormalizer.maxDimension] px), saves it into the project sandbox and
-  /// returns a new [ImageLayer] scaled to fit [canvasSize].
+  /// [ImageNormalizer.maxDimension] px) and saves it into the sandbox of
+  /// [projectId].
   ///
   /// Returns `null` when the user cancels picking or cropping.
-  Future<ImageLayer?> pickAndCropImage({
+  Future<ImportedPhoto?> importPhoto({
     required ImageSource source,
     required String projectId,
-    required Size canvasSize,
-    double defaultX = 0.5,
-    double defaultY = 0.5,
   }) async {
     final pickedFile = await _picker.pickImage(source: source);
     if (pickedFile == null) return null;
@@ -109,18 +124,31 @@ class ImageImportService {
       filename,
     );
 
+    return ImportedPhoto(
+      relativePath: relativePath,
+      width: normalized.width,
+      height: normalized.height,
+    );
+  }
+
+  /// Imports a photo (see [importPhoto]) and returns a new [ImageLayer]
+  /// scaled to fit [canvasSize]. Returns `null` when the user cancels.
+  Future<ImageLayer?> pickAndCropImage({
+    required ImageSource source,
+    required String projectId,
+    required Size canvasSize,
+    double defaultX = 0.5,
+    double defaultY = 0.5,
+  }) async {
+    final photo = await importPhoto(source: source, projectId: projectId);
+    if (photo == null) return null;
+
     return ImageLayer(
       id: const Uuid().v4(),
       x: defaultX,
       y: defaultY,
-      scale: LayerPlacement.fitScale(
-        contentSize: Size(
-          normalized.width.toDouble(),
-          normalized.height.toDouble(),
-        ),
-        canvasSize: canvasSize,
-      ),
-      relativeImagePath: relativePath,
+      scale: LayerPlacement.fitScale(contentSize: photo.size, canvasSize: canvasSize),
+      relativeImagePath: photo.relativePath,
     );
   }
 }

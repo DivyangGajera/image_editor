@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:hive_ce/hive.dart';
 import 'package:image_editor/core/storage/storage_keys.dart';
 import 'package:image_editor/features/canvas/domain/models/project_model.dart';
+import 'package:image_editor/features/layers/domain/models/models.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -75,6 +76,69 @@ class ProjectRepository {
       StorageKeys.imagesDirectory,
       filename,
     );
+  }
+
+  /// Project-relative path of the gallery thumbnail of [projectId].
+  static String thumbnailRelativePath(String projectId) => p.posix.join(
+        StorageKeys.projectsDirectory,
+        projectId,
+        StorageKeys.thumbnailFileName,
+      );
+
+  /// Writes the gallery thumbnail of [projectId] and returns its relative path.
+  Future<String> saveThumbnail(String projectId, Uint8List pngBytes) async {
+    final projectDir = await getProjectDirectory(projectId);
+    final file = File(p.join(projectDir.path, StorageKeys.thumbnailFileName));
+    await file.writeAsBytes(pngBytes, flush: true);
+    return thumbnailRelativePath(projectId);
+  }
+
+  /// Copies [source] (metadata and every file in its sandbox) into a new
+  /// project [newId] titled [title], remapping layer file paths to the copy.
+  Future<ProjectModel> duplicateProject(
+    ProjectModel source, {
+    required String newId,
+    required String title,
+    DateTime? now,
+  }) async {
+    final sourceDir = await getProjectDirectory(source.id);
+    final targetDir = await getProjectDirectory(newId);
+    await _copyDirectory(sourceDir, targetDir);
+
+    final oldPrefix = '${StorageKeys.projectsDirectory}/${source.id}/';
+    final newPrefix = '${StorageKeys.projectsDirectory}/$newId/';
+    String remap(String path) =>
+        path.startsWith(oldPrefix) ? newPrefix + path.substring(oldPrefix.length) : path;
+
+    final timestamp = now ?? DateTime.now();
+    final copy = source.copyWith(
+      id: newId,
+      title: title,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      layers: [
+        for (final layer in source.layers)
+          if (layer is ImageLayer)
+            layer.copyWith(relativeImagePath: remap(layer.relativeImagePath))
+          else
+            layer,
+      ],
+    );
+    await saveProject(copy);
+    return copy;
+  }
+
+  Future<void> _copyDirectory(Directory from, Directory to) async {
+    await for (final entity in from.list(recursive: false, followLinks: false)) {
+      final name = p.basename(entity.path);
+      if (entity is Directory) {
+        final child = Directory(p.join(to.path, name));
+        await child.create(recursive: true);
+        await _copyDirectory(entity, child);
+      } else if (entity is File) {
+        await entity.copy(p.join(to.path, name));
+      }
+    }
   }
 
   /// Stores project metadata in the Hive CE `projects_box`.

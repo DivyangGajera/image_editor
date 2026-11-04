@@ -152,6 +152,22 @@ void main() {
       expect(decoded.height, 1024);
     });
 
+    test('importPhoto reports the saved path and normalized pixel size', () async {
+      final photo = img.Image(width: 3000, height: 1500)..clear(img.ColorRgb8(1, 2, 3));
+      await stubPickAndCrop(Uint8List.fromList(img.encodeJpg(photo)));
+
+      final imported = await service.importPhoto(
+        source: ImageSource.gallery,
+        projectId: 'test-proj',
+      );
+
+      expect(imported, isNotNull);
+      expect(imported!.relativePath, startsWith('projects/test-proj/images/img_'));
+      expect(imported.width, 2048);
+      expect(imported.height, 1024);
+      expect(imported.size, const Size(2048, 1024));
+    });
+
     test('keeps transparency as PNG and never enlarges small images', () async {
       final sticker = img.Image(width: 200, height: 100, numChannels: 4)
         ..clear(img.ColorRgba8(0, 0, 0, 0));
