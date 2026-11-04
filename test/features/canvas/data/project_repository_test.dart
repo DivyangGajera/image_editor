@@ -218,5 +218,56 @@ void main() {
       // Idempotent deletion on already-deleted project should succeed without error
       await expectLater(repository.deleteProject(projMulti), completes);
     });
+
+    test('saveThumbnail writes thumbnail.png and returns its relative path', () async {
+      final relative = await repository.saveThumbnail('thumb-proj', Uint8List.fromList([1, 2, 3]));
+
+      expect(relative, 'projects/thumb-proj/thumbnail.png');
+      expect(relative, ProjectRepository.thumbnailRelativePath('thumb-proj'));
+      final file = await repository.resolveRelativePath(relative);
+      expect(await file.readAsBytes(), [1, 2, 3]);
+    });
+
+    test('duplicateProject copies files and remaps image paths to the new project', () async {
+      final imagePath = await repository.saveLayerImage('orig', Uint8List.fromList([9, 9]), 'a.png');
+      await repository.saveThumbnail('orig', Uint8List.fromList([7]));
+      final original = ProjectModel(
+        id: 'orig',
+        title: 'Original',
+        createdAt: DateTime(2026, 1, 1),
+        updatedAt: DateTime(2026, 1, 2),
+        layers: [
+          ImageLayer(id: 'img', x: 0.5, y: 0.5, relativeImagePath: imagePath),
+          const StickerLayer(id: 's', x: 0.1, y: 0.1, assetPath: 'assets/stickers/badges/b.png'),
+        ],
+      );
+      await repository.saveProject(original);
+
+      final copy = await repository.duplicateProject(
+        original,
+        newId: 'copy',
+        title: 'Original (copy)',
+        now: DateTime(2026, 11, 4),
+      );
+
+      expect(copy.id, 'copy');
+      expect(copy.title, 'Original (copy)');
+      expect(copy.createdAt, DateTime(2026, 11, 4));
+      final copiedImage = copy.layers.first as ImageLayer;
+      expect(copiedImage.relativeImagePath, 'projects/copy/images/a.png');
+      expect((copy.layers.last as StickerLayer).assetPath, 'assets/stickers/badges/b.png');
+
+      final copiedFile = await repository.resolveRelativePath(copiedImage.relativeImagePath);
+      expect(await copiedFile.readAsBytes(), [9, 9]);
+      final copiedThumb = await repository.resolveRelativePath(
+        ProjectRepository.thumbnailRelativePath('copy'),
+      );
+      expect(copiedThumb.existsSync(), isTrue);
+      expect(await repository.loadProject('copy'), copy);
+
+      // The original is untouched and independent.
+      await repository.deleteProject('copy');
+      expect((await repository.resolveRelativePath(imagePath)).existsSync(), isTrue);
+    });
   });
 }
