@@ -110,22 +110,27 @@ class FontLibraryNotifier extends _$FontLibraryNotifier {
 
   FontLibraryState get _current => state.value ?? const FontLibraryState();
 
-  void _publish(FontLibraryState next) {
-    if (ref.mounted) state = AsyncData(next);
+  /// Applies [change] to the state, unless this notifier was disposed while
+  /// an operation was awaiting I/O (reading state would then throw).
+  void _update(FontLibraryState Function(FontLibraryState current) change) {
+    if (!ref.mounted) return;
+    state = AsyncData(change(_current));
   }
 
   void _setProgress(String family, double? progress) {
-    _publish(_current.copyWith(downloading: {..._current.downloading, family: progress}));
+    _update((s) => s.copyWith(downloading: {...s.downloading, family: progress}));
   }
 
   void _clearProgress(String family) {
-    _publish(_current.copyWith(downloading: {..._current.downloading}..remove(family)));
+    _update((s) => s.copyWith(downloading: {...s.downloading}..remove(family)));
   }
 
   void _addInstalled(FontEntry entry) {
-    final fonts = [..._current.fonts, entry]
-      ..sort((a, b) => a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()));
-    _publish(_current.copyWith(fonts: fonts));
+    _update((s) {
+      final fonts = [...s.fonts, entry]
+        ..sort((a, b) => a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()));
+      return s.copyWith(fonts: fonts);
+    });
   }
 
   /// Downloads [font] from the catalog and installs it. Text that used this
@@ -202,8 +207,6 @@ class FontLibraryNotifier extends _$FontLibraryNotifier {
   /// default font until the font is downloaded or imported again.
   Future<void> delete(FontEntry entry) async {
     await _fonts.delete(entry);
-    _publish(_current.copyWith(
-      fonts: _current.fonts.where((font) => font.id != entry.id).toList(),
-    ));
+    _update((s) => s.copyWith(fonts: s.fonts.where((font) => font.id != entry.id).toList()));
   }
 }

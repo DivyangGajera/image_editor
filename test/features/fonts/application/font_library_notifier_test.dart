@@ -200,6 +200,20 @@ void main() {
     expect((await state()).isInstalled('Hind Vadodara'), isTrue);
   });
 
+  test('a download still running when the library is disposed completes quietly', () async {
+    await state();
+    server.gate = Completer<void>();
+
+    final pending = library().download(catalogFont);
+    container.dispose();
+    server.gate!.complete();
+
+    await expectLater(pending, completes);
+    // The font was still saved and is installed after a restart.
+    container = makeContainer();
+    expect((await state()).isInstalled('Hind Vadodara'), isTrue);
+  });
+
   test('a font whose file went missing is skipped at startup', () async {
     final broken = await fonts.save(
       family: 'Anton',

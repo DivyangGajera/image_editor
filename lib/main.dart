@@ -3,14 +3,27 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_editor/core/constants/app_constants.dart';
 import 'package:image_editor/core/storage/app_bootstrap.dart';
 import 'package:image_editor/core/theme/app_theme.dart';
+import 'package:image_editor/core/utils/app_logger.dart';
+import 'package:image_editor/features/fonts/application/font_library_notifier.dart';
 import 'package:image_editor/features/projects/presentation/home_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await AppBootstrap.initialize();
+
+  final container = ProviderContainer();
+  // Register installed fonts before the first frame, so saved text renders
+  // in its font immediately. A failure must not prevent the app from starting.
+  try {
+    await container.read(fontLibraryProvider.future);
+  } catch (error, stackTrace) {
+    AppLogger.error('Font library failed to load', tag: 'Fonts', error: error, stackTrace: stackTrace);
+  }
+
   runApp(
-    const ProviderScope(
-      child: OfflineImageEditorApp(),
+    UncontrolledProviderScope(
+      container: container,
+      child: const OfflineImageEditorApp(),
     ),
   );
 }

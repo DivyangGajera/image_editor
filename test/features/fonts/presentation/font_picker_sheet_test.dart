@@ -128,6 +128,20 @@ void main() {
   Future<void> tapReal(WidgetTester tester, Finder finder) =>
       real(tester, () async => tester.tap(finder));
 
+  /// Pumps frames (letting real I/O run) until [condition] holds, without
+  /// pumpAndSettle: a download spinner animates until the download ends.
+  Future<void> pumpUntil(WidgetTester tester, bool Function() condition) async {
+    for (var i = 0; i < 200 && !condition(); i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(condition(), isTrue, reason: 'condition not reached in time');
+    await tester.pumpAndSettle();
+  }
+
+  bool installed(String family) =>
+      container.read(fontLibraryProvider).value?.isInstalled(family) ?? false;
+
   Future<void> openDownloadTab(WidgetTester tester) async {
     await tester.tap(find.byKey(const ValueKey('tab_download')));
     // The reachability check runs real (fake-server) futures.
@@ -184,9 +198,12 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('script_gujarati')));
     await tester.pumpAndSettle();
 
-    await tapReal(tester, find.byKey(const ValueKey('download_Hind Vadodara')));
+    // Tap in the real zone so the download's file and Hive writes can finish.
+    await tester.runAsync(
+      () async => tester.tap(find.byKey(const ValueKey('download_Hind Vadodara'))),
+    );
+    await pumpUntil(tester, () => installed('Hind Vadodara'));
 
-    expect(container.read(fontLibraryProvider).value!.isInstalled('Hind Vadodara'), isTrue);
     expect(find.byKey(const ValueKey('download_Hind Vadodara')), findsNothing);
     expect(find.text('Sans · Gujarati · Installed'), findsOneWidget);
   });
@@ -246,9 +263,11 @@ void main() {
     await openPicker(tester, current: 'Anton');
 
     expect(find.byKey(const ValueKey('missing_font_banner')), findsOneWidget);
-    await tapReal(tester, find.byKey(const ValueKey('redownload_missing_font')));
+    await tester.runAsync(
+      () async => tester.tap(find.byKey(const ValueKey('redownload_missing_font'))),
+    );
+    await pumpUntil(tester, () => installed('Anton'));
 
-    expect(container.read(fontLibraryProvider).value!.isInstalled('Anton'), isTrue);
     expect(find.byKey(const ValueKey('missing_font_banner')), findsNothing);
   });
 
