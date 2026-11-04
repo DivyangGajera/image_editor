@@ -1,3 +1,4 @@
+import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_editor/features/export/domain/models/models.dart';
 
@@ -46,8 +47,7 @@ void main() {
     test('default values are initialized properly', () {
       const config = ExportConfig();
       expect(config.format, equals(ExportFormat.png));
-      expect(config.width, equals(1080.0));
-      expect(config.height, equals(1080.0));
+      expect(config.resolution, equals(ExportResolution.standard));
       expect(config.jpegQuality, equals(95));
       expect(config.watermark.isEnabled, isFalse);
     });
@@ -57,13 +57,13 @@ void main() {
       final updated = config.copyWith(
         format: ExportFormat.jpeg,
         jpegQuality: 85,
-        width: 1920.0,
+        resolution: ExportResolution.fourK,
       );
 
       expect(updated.format, equals(ExportFormat.jpeg));
       expect(updated.jpegQuality, equals(85));
-      expect(updated.width, equals(1920.0));
-      expect(updated.height, equals(1080.0));
+      expect(updated.resolution, equals(ExportResolution.fourK));
+      expect(updated.watermark, equals(config.watermark));
     });
 
     test('equality and hashCode support', () {
@@ -74,6 +74,34 @@ void main() {
       expect(e1, equals(e2));
       expect(e1.hashCode, equals(e2.hashCode));
       expect(e1, isNot(equals(e3)));
+    });
+  });
+  group('ExportResolution.outputSizeFor', () {
+    test('standard keeps the canvas size', () {
+      expect(
+        ExportResolution.standard.outputSizeFor(const Size(1080, 1350)),
+        const Size(1080, 1350),
+      );
+    });
+
+    test('2K and 4K scale the longest edge and preserve the aspect ratio', () {
+      expect(
+        ExportResolution.twoK.outputSizeFor(const Size(1080, 1920)),
+        const Size(1440, 2560),
+      );
+      expect(
+        ExportResolution.fourK.outputSizeFor(const Size(1920, 1080)),
+        const Size(3840, 2160),
+      );
+      expect(
+        ExportResolution.fourK.outputSizeFor(const Size(1080, 1350)),
+        const Size(3072, 3840),
+      );
+    });
+
+    test('ExportConfig.outputSize delegates to its tier', () {
+      const config = ExportConfig(resolution: ExportResolution.twoK);
+      expect(config.outputSize(const Size(1080, 1080)), const Size(2560, 2560));
     });
   });
 }

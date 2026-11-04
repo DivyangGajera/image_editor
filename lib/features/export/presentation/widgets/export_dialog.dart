@@ -36,19 +36,14 @@ class _ExportDialogState extends ConsumerState<ExportDialog> {
   @override
   void initState() {
     super.initState();
-    _config = ExportConfig(
-      width: widget.project.canvasWidth,
-      height: widget.project.canvasHeight,
-    );
+    _config = const ExportConfig();
   }
 
-  void _setResolutionScale(double multiplier) {
-    setState(() {
-      _config = _config.copyWith(
-        width: widget.project.canvasWidth * multiplier,
-        height: widget.project.canvasHeight * multiplier,
-      );
-    });
+  Size get _canvasSize =>
+      Size(widget.project.canvasWidth, widget.project.canvasHeight);
+
+  void _setResolution(ExportResolution resolution) {
+    setState(() => _config = _config.copyWith(resolution: resolution));
   }
 
   Future<void> _handleExport() async {
@@ -119,7 +114,7 @@ class _ExportDialogState extends ConsumerState<ExportDialog> {
                     ),
                     const SizedBox(height: 2.0),
                     Text(
-                      '${_config.width.round()} x ${_config.height.round()} px',
+                      '${_config.outputSize(_canvasSize).width.round()} x ${_config.outputSize(_canvasSize).height.round()} px',
                       style: const TextStyle(
                         color: Color(0xFF4E95FF),
                         fontSize: 12.0,
@@ -210,26 +205,16 @@ class _ExportDialogState extends ConsumerState<ExportDialog> {
                   const SizedBox(height: 8.0),
                   Row(
                     children: [
-                      _buildResolutionChip(
-                        key: 'res_1x',
-                        label: '1x Original',
-                        isSelected: _config.width == widget.project.canvasWidth,
-                        onTap: () => _setResolutionScale(1.0),
-                      ),
-                      const SizedBox(width: 8.0),
-                      _buildResolutionChip(
-                        key: 'res_1_5x',
-                        label: '1.5x HD',
-                        isSelected: _config.width == widget.project.canvasWidth * 1.5,
-                        onTap: () => _setResolutionScale(1.5),
-                      ),
-                      const SizedBox(width: 8.0),
-                      _buildResolutionChip(
-                        key: 'res_2x',
-                        label: '2x Ultra HD',
-                        isSelected: _config.width == widget.project.canvasWidth * 2.0,
-                        onTap: () => _setResolutionScale(2.0),
-                      ),
+                      for (final resolution in ExportResolution.values) ...[
+                        if (resolution != ExportResolution.values.first)
+                          const SizedBox(width: 8.0),
+                        _buildResolutionChip(
+                          key: 'res_${resolution.name}',
+                          label: resolution.label,
+                          isSelected: _config.resolution == resolution,
+                          onTap: () => _setResolution(resolution),
+                        ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 20.0),

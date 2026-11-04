@@ -94,19 +94,17 @@ void main() {
       await tester.pumpWidget(createWidgetUnderTest());
       await tester.pumpAndSettle();
 
-      // Tap 2x Ultra HD
-      await tester.tap(find.byKey(const ValueKey('res_2x')));
+      // Tap 4K: longest edge 3840, canvas aspect ratio 1000:800 preserved
+      await tester.tap(find.byKey(const ValueKey('res_fourK')));
       await tester.pumpAndSettle();
 
-      // Dimensions should scale 2x: 2000 x 1600 px
-      expect(find.text('2000 x 1600 px'), findsOneWidget);
+      expect(find.text('3840 x 3072 px'), findsOneWidget);
 
-      // Tap 1.5x HD
-      await tester.tap(find.byKey(const ValueKey('res_1_5x')));
+      // Tap 2K: longest edge 2560
+      await tester.tap(find.byKey(const ValueKey('res_twoK')));
       await tester.pumpAndSettle();
 
-      // Dimensions: 1500 x 1200 px
-      expect(find.text('1500 x 1200 px'), findsOneWidget);
+      expect(find.text('2560 x 2048 px'), findsOneWidget);
     });
 
     testWidgets('enabling watermark reveals watermark text and position options', (tester) async {
