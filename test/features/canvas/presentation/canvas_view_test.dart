@@ -95,7 +95,7 @@ void main() {
 
     testWidgets('renders all initial layers on the canvas', (tester) async {
       final container = ProviderContainer(
-        overrides: <Override>[
+        overrides: [
           projectRepositoryProvider.overrideWithValue(projectRepository),
           historyManagerProvider(project.id).overrideWithValue(historyManager),
         ],
@@ -111,7 +111,7 @@ void main() {
 
     testWidgets('tapping a layer selects it and displays bounding box and delete handle', (tester) async {
       final container = ProviderContainer(
-        overrides: <Override>[
+        overrides: [
           projectRepositoryProvider.overrideWithValue(projectRepository),
           historyManagerProvider(project.id).overrideWithValue(historyManager),
         ],
@@ -137,7 +137,7 @@ void main() {
 
     testWidgets('tapping delete button removes the selected layer', (tester) async {
       final container = ProviderContainer(
-        overrides: <Override>[
+        overrides: [
           projectRepositoryProvider.overrideWithValue(projectRepository),
           historyManagerProvider(project.id).overrideWithValue(historyManager),
         ],
@@ -166,7 +166,7 @@ void main() {
 
     testWidgets('tapping canvas background deselects active layer', (tester) async {
       final container = ProviderContainer(
-        overrides: <Override>[
+        overrides: [
           projectRepositoryProvider.overrideWithValue(projectRepository),
           historyManagerProvider(project.id).overrideWithValue(historyManager),
         ],
@@ -192,7 +192,7 @@ void main() {
 
     testWidgets('dragging selected layer updates coordinates via gesture input', (tester) async {
       final container = ProviderContainer(
-        overrides: <Override>[
+        overrides: [
           projectRepositoryProvider.overrideWithValue(projectRepository),
           historyManagerProvider(project.id).overrideWithValue(historyManager),
         ],
@@ -225,7 +225,7 @@ void main() {
 
     testWidgets('renders properly without RenderFlex overflow on compact viewports', (tester) async {
       final container = ProviderContainer(
-        overrides: <Override>[
+        overrides: [
           projectRepositoryProvider.overrideWithValue(projectRepository),
           historyManagerProvider(project.id).overrideWithValue(historyManager),
         ],

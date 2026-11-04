@@ -64,7 +64,12 @@ class CanvasState {
 
 /// Riverpod notifier coordinating canvas workspace layer interactions, mutations,
 /// and automated history snapshot recording.
-class CanvasNotifier extends FamilyNotifier<CanvasState, ProjectModel> {
+class CanvasNotifier extends Notifier<CanvasState> {
+  CanvasNotifier(this.arg);
+
+  /// The project this canvas session edits.
+  final ProjectModel arg;
+
   HistoryNotifier get _historyNotifier =>
       ref.read(historyNotifierProvider(arg.id).notifier);
 
@@ -72,7 +77,7 @@ class CanvasNotifier extends FamilyNotifier<CanvasState, ProjectModel> {
       ref.read(projectRepositoryProvider);
 
   @override
-  CanvasState build(ProjectModel arg) {
+  CanvasState build() {
     return CanvasState(project: arg);
   }
 

@@ -179,7 +179,7 @@ void main() {
 
     test('HistoryNotifier updates reactive state in Riverpod container', () async {
       final container = ProviderContainer(
-        overrides: <Override>[
+        overrides: [
           historyManagerProvider(testProjectId).overrideWithValue(manager),
         ],
       );
