@@ -6,8 +6,12 @@ import 'package:image_editor/features/images/application/image_import_service.da
 import 'package:image_editor/features/layers/application/layer_placement.dart';
 import 'package:image_editor/features/layers/domain/models/models.dart';
 import 'package:image_editor/features/segmentation/application/segmentation_notifier.dart';
+import 'package:image_editor/features/stickers/data/user_sticker_repository.dart';
+import 'package:image_editor/features/stickers/domain/models/sticker_selection.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as p;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:uuid/uuid.dart';
 
 part 'editor_commands.g.dart';
 
@@ -24,6 +28,7 @@ class EditorCommands {
     required this._imageImport,
     required this._segmentation,
     required this._projectRepository,
+    required this._userStickers,
     AssetSizeReader? readAssetSize,
   }) : _readAssetSize = readAssetSize ?? readBundledImageSize;
 
@@ -33,6 +38,7 @@ class EditorCommands {
   final ImageImportService _imageImport;
   final SegmentationNotifier Function() _segmentation;
   final ProjectRepository _projectRepository;
+  final UserStickerRepository _userStickers;
   final AssetSizeReader _readAssetSize;
 
   ui.Size get _canvasSize {
@@ -61,15 +67,38 @@ class EditorCommands {
     );
   }
 
-  /// Adds a sticker sized to [LayerPlacement.stickerWidthFraction] of the
-  /// canvas width.
-  Future<void> addSticker(StickerLayer sticker) async {
-    final assetSize = await _readAssetSize(sticker.assetPath);
+  /// Adds the chosen sticker sized to [LayerPlacement.stickerWidthFraction]
+  /// of the canvas width. User stickers are copied into the project first, so
+  /// the design keeps working even if the sticker is removed from My stickers.
+  Future<void> addSticker(StickerSelection selection) async {
+    final StickerLayer layer;
+    final double contentWidth;
+    switch (selection) {
+      case BundledStickerSelection(:final item):
+        contentWidth = (await _readAssetSize(item.assetPath)).width;
+        layer = StickerLayer(id: const Uuid().v4(), x: 0.5, y: 0.5, assetPath: item.assetPath);
+      case UserStickerSelection(:final sticker):
+        final bytes = await (await _userStickers.resolve(sticker.relativePath)).readAsBytes();
+        final projectPath = await _projectRepository.saveLayerImage(
+          projectId,
+          bytes,
+          'sticker_${const Uuid().v4()}${p.extension(sticker.relativePath)}',
+        );
+        contentWidth = sticker.width.toDouble();
+        layer = StickerLayer(
+          id: const Uuid().v4(),
+          x: 0.5,
+          y: 0.5,
+          assetPath: sticker.relativePath,
+          relativeFilePath: projectPath,
+        );
+    }
+
     final scale = LayerPlacement.widthScale(
-      contentWidth: assetSize.width,
+      contentWidth: contentWidth,
       canvasWidth: _canvasSize.width,
     );
-    await _canvas().addLayer(sticker.copyWith(scale: scale));
+    await _canvas().addLayer(layer.copyWith(scale: scale));
   }
 
   /// Runs offline background removal on the image layer [layerId] and places
@@ -144,5 +173,6 @@ EditorCommands editorCommands(Ref ref, String projectId) {
     imageImport: ref.watch(imageImportServiceProvider),
     segmentation: () => ref.read(segmentationProvider.notifier),
     projectRepository: ref.watch(projectRepositoryProvider),
+    userStickers: ref.watch(userStickerRepositoryProvider),
   );
 }

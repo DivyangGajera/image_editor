@@ -70,7 +70,7 @@ final class EditorCommandsProvider
   }
 }
 
-String _$editorCommandsHash() => r'd33df56c0ac8d3c21baa9b3870c87771be9a02fe';
+String _$editorCommandsHash() => r'ad31f40c6d3867033892e84a782547e74005bf75';
 
 /// [EditorCommands] bound to the canvas of [projectId].
 

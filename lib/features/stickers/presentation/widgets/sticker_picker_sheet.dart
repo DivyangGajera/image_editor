@@ -1,239 +1,230 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_editor/features/canvas/application/canvas_notifier.dart';
-import 'package:image_editor/features/layers/domain/models/sticker_layer.dart';
+import 'package:image_editor/features/stickers/application/user_stickers_notifier.dart';
 import 'package:image_editor/features/stickers/data/sticker_repository.dart';
-import 'package:image_editor/features/stickers/domain/models/sticker_category.dart';
-import 'package:image_editor/features/stickers/domain/models/sticker_item.dart';
+import 'package:image_editor/features/stickers/data/user_sticker_repository.dart';
+import 'package:image_editor/features/stickers/domain/models/models.dart';
 import 'package:image_editor/features/stickers/presentation/widgets/sticker_thumbnail.dart';
-import 'package:uuid/uuid.dart';
 
-/// Modal bottom sheet displaying categorized stickers and promo badges.
-///
-/// Selecting a sticker instantiates a new [StickerLayer] positioned at
-/// canvas center with normalized coordinates (`x: 0.5, y: 0.5`).
-class StickerPickerSheet extends ConsumerWidget {
-  const StickerPickerSheet({
-    super.key,
-    this.projectId,
-    this.onStickerSelected,
-    this.defaultX = 0.5,
-    this.defaultY = 0.5,
-    this.defaultScale = 1.0,
-  });
+/// Bottom sheet for picking a sticker: the user's own stickers (with import)
+/// and the bundled categories. Returns the selection, or null if dismissed.
+class StickerPickerSheet extends StatelessWidget {
+  const StickerPickerSheet({super.key});
 
-  /// Optional active project ID. When provided, the instantiated
-  /// [StickerLayer] is automatically added to the canvas via [CanvasNotifier].
-  final String? projectId;
-
-  /// Optional callback invoked when a sticker is selected.
-  final ValueChanged<StickerLayer>? onStickerSelected;
-
-  /// Default normalized horizontal center position on canvas (defaults to 0.5).
-  final double defaultX;
-
-  /// Default normalized vertical center position on canvas (defaults to 0.5).
-  final double defaultY;
-
-  /// Default scaling multiplier (defaults to 1.0).
-  final double defaultScale;
-
-  /// Helper displaying the modal bottom sheet and returning the instantiated [StickerLayer].
-  static Future<StickerLayer?> show(
-    BuildContext context, {
-    String? projectId,
-    ValueChanged<StickerLayer>? onStickerSelected,
-    double defaultX = 0.5,
-    double defaultY = 0.5,
-    double defaultScale = 1.0,
-  }) {
-    return showModalBottomSheet<StickerLayer>(
+  static Future<StickerSelection?> show(BuildContext context) {
+    return showModalBottomSheet<StickerSelection>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => StickerPickerSheet(
-        projectId: projectId,
-        onStickerSelected: onStickerSelected,
-        defaultX: defaultX,
-        defaultY: defaultY,
-        defaultScale: defaultScale,
-      ),
+      showDragHandle: false,
+      builder: (_) => const StickerPickerSheet(),
     );
   }
-
-  Future<void> _handleStickerTap(BuildContext context, WidgetRef ref, StickerItem item) async {
-    final layer = StickerLayer(
-      id: const Uuid().v4(),
-      x: defaultX,
-      y: defaultY,
-      scale: defaultScale,
-      rotation: 0.0,
-      zIndex: 0,
-      isVisible: true,
-      assetPath: item.assetPath,
-    );
-
-    final navigator = Navigator.of(context);
-    final id = projectId;
-    if (id != null) {
-      await ref.read(canvasProvider(id).notifier).addLayer(layer);
-    }
-
-    onStickerSelected?.call(layer);
-    if (context.mounted && navigator.canPop()) {
-      navigator.pop(layer);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final repository = ref.watch(stickerRepositoryProvider);
-    final categories = repository.getCategories();
-
-    return Material(
-      color: Colors.transparent,
-      child: Container(
-        height: MediaQuery.of(context).size.height * 0.65,
-        decoration: const BoxDecoration(
-          color: Color(0xFF161622),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20.0)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black54,
-              blurRadius: 16.0,
-              offset: Offset(0, -4),
-            ),
-          ],
-        ),
-        child: DefaultTabController(
-          length: categories.length,
-          child: Column(
-            children: [
-              const SizedBox(height: 10.0),
-              // Drag handle
-              Center(
-                child: Container(
-                  width: 40.0,
-                  height: 4.0,
-                  decoration: BoxDecoration(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(2.0),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12.0),
-              // Header title and close button
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.local_offer,
-                      color: Color(0xFF4E95FF),
-                      size: 20.0,
-                    ),
-                    const SizedBox(width: 8.0),
-                    const Text(
-                      'Stickers & Badges',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16.0,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white54, size: 20.0),
-                      onPressed: () => Navigator.of(context).pop(),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12.0),
-              // Category TabBar
-              TabBar(
-                isScrollable: categories.length > 3,
-                labelColor: Colors.white,
-                unselectedLabelColor: Colors.white38,
-                indicatorColor: const Color(0xFF4E95FF),
-                indicatorWeight: 3.0,
-                indicatorSize: TabBarIndicatorSize.tab,
-                tabs: [
-                  for (final cat in categories)
-                    Tab(
-                      child: Text(
-                        cat.name,
-                        style: const TextStyle(
-                          fontSize: 13.0,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              const Divider(color: Color(0xFF2E2E40), height: 1.0),
-              // TabBarView with sticker grids
-              Expanded(
-                child: TabBarView(
-                  children: [
-                    for (final cat in categories)
-                      _CategoryGrid(
-                        category: cat,
-                        onTapSticker: (item) => _handleStickerTap(context, ref, item),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Grid rendering the stickers for a specific [StickerCategory].
-class _CategoryGrid extends StatelessWidget {
-  const _CategoryGrid({
-    required this.category,
-    required this.onTapSticker,
-  });
-
-  final StickerCategory category;
-  final ValueChanged<StickerItem> onTapSticker;
 
   @override
   Widget build(BuildContext context) {
-    if (category.stickers.isEmpty) {
-      return const Center(
-        child: Text(
-          'No stickers available',
-          style: TextStyle(color: Colors.white38, fontSize: 13.0),
-        ),
-      );
-    }
+    return Consumer(
+      builder: (context, ref, _) {
+        final categories = ref.watch(stickerRepositoryProvider).getCategories();
 
-    return GridView.builder(
-      padding: const EdgeInsets.all(16.0),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 130.0,
-        crossAxisSpacing: 12.0,
-        mainAxisSpacing: 12.0,
-        childAspectRatio: 0.95,
-      ),
-      itemCount: category.stickers.length,
-      itemBuilder: (context, index) {
-        final item = category.stickers[index];
-        return StickerThumbnail(
-          item: item,
-          onTap: () => onTapSticker(item),
+        return SizedBox(
+          height: MediaQuery.sizeOf(context).height * 0.7,
+          // A local messenger keeps snackbars visible above the sheet.
+          child: ScaffoldMessenger(
+            child: Scaffold(
+              backgroundColor: Colors.transparent,
+              body: DefaultTabController(
+                length: categories.length + 1,
+                child: Column(
+                  children: [
+                    const SizedBox(height: 12.0),
+                    Container(
+                      width: 32.0,
+                      height: 4.0,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                        borderRadius: BorderRadius.circular(2.0),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20.0, 12.0, 8.0, 0.0),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Stickers',
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Close',
+                            icon: const Icon(Icons.close_rounded),
+                            onPressed: () => Navigator.of(context).pop(),
+                          ),
+                        ],
+                      ),
+                    ),
+                    TabBar(
+                      isScrollable: true,
+                      tabAlignment: TabAlignment.start,
+                      tabs: [
+                        const Tab(key: ValueKey('tab_my_stickers'), text: 'My stickers'),
+                        for (final category in categories) Tab(text: category.name),
+                      ],
+                    ),
+                    Expanded(
+                      child: TabBarView(
+                        children: [
+                          const _MyStickersGrid(),
+                          for (final category in categories)
+                            _StickerGrid(
+                              itemCount: category.stickers.length,
+                              itemBuilder: (context, index) {
+                                final item = category.stickers[index];
+                                return StickerThumbnail(
+                                  key: ValueKey('sticker_thumbnail_${item.id}'),
+                                  label: item.title,
+                                  image: Image.asset(item.assetPath, fit: BoxFit.contain),
+                                  onTap: () => Navigator.of(context)
+                                      .pop(BundledStickerSelection(item)),
+                                );
+                              },
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         );
       },
     );
   }
 }
 
-/// Alias for [StickerPickerSheet] matching phase specification naming.
-typedef StickerPickerBottomSheet = StickerPickerSheet;
+class _StickerGrid extends StatelessWidget {
+  const _StickerGrid({required this.itemCount, required this.itemBuilder});
+
+  final int itemCount;
+  final IndexedWidgetBuilder itemBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      padding: const EdgeInsets.all(16.0),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 120.0,
+        crossAxisSpacing: 12.0,
+        mainAxisSpacing: 12.0,
+        childAspectRatio: 0.9,
+      ),
+      itemCount: itemCount,
+      itemBuilder: itemBuilder,
+    );
+  }
+}
+
+class _MyStickersGrid extends ConsumerWidget {
+  const _MyStickersGrid();
+
+  void _showMessage(BuildContext context, String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _import(BuildContext context, WidgetRef ref) async {
+    try {
+      await ref.read(userStickersProvider.notifier).importFromDevice();
+    } on StickerImportException catch (error) {
+      if (context.mounted) _showMessage(context, error.message);
+    }
+  }
+
+  Future<void> _confirmDelete(BuildContext context, WidgetRef ref, UserSticker sticker) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove sticker?'),
+        content: const Text(
+          'It is removed from My stickers. Designs that already use it keep their copy.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: const ValueKey('confirm_delete_sticker'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed ?? false) await ref.read(userStickersProvider.notifier).delete(sticker);
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final stickers = ref.watch(userStickersProvider).value ?? const <UserSticker>[];
+    final repository = ref.watch(userStickerRepositoryProvider);
+    final colors = Theme.of(context).colorScheme;
+
+    return Column(
+      children: [
+        Expanded(
+          child: _StickerGrid(
+            itemCount: stickers.length + 1,
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                return StickerThumbnail(
+                  key: const ValueKey('import_sticker_tile'),
+                  label: 'Import',
+                  image: Icon(Icons.add_photo_alternate_outlined, size: 36.0, color: colors.primary),
+                  onTap: () => _import(context, ref),
+                );
+              }
+              final sticker = stickers[index - 1];
+              return StickerThumbnail(
+                key: ValueKey('user_sticker_${sticker.id}'),
+                image: FutureBuilder<File>(
+                  future: repository.resolve(sticker.relativePath),
+                  builder: (context, snapshot) {
+                    final file = snapshot.data;
+                    return file == null
+                        ? const SizedBox.shrink()
+                        : Image.file(
+                            file,
+                            fit: BoxFit.contain,
+                            cacheWidth: 256,
+                            errorBuilder: (_, _, _) => Icon(
+                              Icons.broken_image_outlined,
+                              color: colors.outline,
+                            ),
+                          );
+                  },
+                ),
+                onTap: () => Navigator.of(context).pop(UserStickerSelection(sticker)),
+                onLongPress: () => _confirmDelete(context, ref, sticker),
+              );
+            },
+          ),
+        ),
+        if (stickers.isEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24.0, 0.0, 24.0, 24.0),
+            child: Text(
+              'Import your logo or any PNG to reuse it in every design. '
+              'Long-press a sticker to remove it.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: colors.onSurfaceVariant),
+            ),
+          ),
+      ],
+    );
+  }
+}

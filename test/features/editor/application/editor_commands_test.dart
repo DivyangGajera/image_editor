@@ -13,6 +13,7 @@ import 'package:image_editor/features/images/application/image_import_service.da
 import 'package:image_editor/features/layers/domain/models/models.dart';
 import 'package:image_editor/features/segmentation/application/background_removal_service.dart';
 import 'package:image_editor/features/segmentation/application/segmentation_notifier.dart';
+import 'package:image_editor/features/stickers/stickers.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -78,6 +79,7 @@ void main() {
       imageImport: imageImport,
       segmentation: () => container.read(segmentationProvider.notifier),
       projectRepository: repository,
+      userStickers: UserStickerRepository(getBaseDir: () async => tempDir),
       readAssetSize: (_) async => const Size(500, 200),
     );
   });
@@ -134,13 +136,44 @@ void main() {
     expect(layers().single.scale, closeTo(1000 / 360, 1e-9));
   });
 
-  test('addSticker sizes the sticker to 35% of the canvas width', () async {
+  test('addSticker sizes a bundled sticker to 35% of the canvas width', () async {
     await commands.addSticker(
-      const StickerLayer(id: 's', x: 0.5, y: 0.5, assetPath: 'assets/stickers/x.png'),
+      const BundledStickerSelection(
+        StickerItem(id: 'x', title: 'X', assetPath: 'assets/stickers/x.png', category: 'C'),
+      ),
     );
 
+    final layer = layers().single as StickerLayer;
     // 1000 * 0.35 / 500 px asset width.
-    expect(layers().single.scale, closeTo(0.7, 1e-9));
+    expect(layer.scale, closeTo(0.7, 1e-9));
+    expect(layer.assetPath, 'assets/stickers/x.png');
+    expect(layer.isUserSticker, isFalse);
+  });
+
+  test('addSticker copies a user sticker into the project', () async {
+    final libraryFile = File('${tempDir.path}/stickers/logo.png');
+    await libraryFile.parent.create(recursive: true);
+    await libraryFile.writeAsBytes([1, 2, 3]);
+
+    await commands.addSticker(
+      UserStickerSelection(
+        UserSticker(
+          id: 'logo',
+          relativePath: 'stickers/logo.png',
+          width: 250,
+          height: 100,
+          addedAt: DateTime(2026),
+        ),
+      ),
+    );
+
+    final layer = layers().single as StickerLayer;
+    expect(layer.isUserSticker, isTrue);
+    expect(layer.relativeFilePath, startsWith('projects/editor-commands/images/sticker_'));
+    expect(layer.relativeFilePath, endsWith('.png'));
+    expect(layer.scale, closeTo(1000 * 0.35 / 250, 1e-9));
+    final copy = await repository.resolveRelativePath(layer.relativeFilePath!);
+    expect(await copy.readAsBytes(), [1, 2, 3]);
   });
 
   test('removeBackground runs segmentation on the resolved file and applies the cutout',
