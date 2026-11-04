@@ -1,8 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+part 'font_service.g.dart';
 
 /// Service responsible for typography styling, resolving Google Fonts dynamically,
 /// and registering custom user-imported TTF/OTF fonts in the Flutter engine via [FontLoader].
@@ -82,7 +84,6 @@ class FontService {
   }
 }
 
-/// Riverpod provider for singleton instance of [FontService].
-final fontServiceProvider = Provider<FontService>((ref) {
-  return FontService();
-});
+/// App-wide singleton [FontService].
+@Riverpod(keepAlive: true)
+FontService fontService(Ref ref) => FontService();

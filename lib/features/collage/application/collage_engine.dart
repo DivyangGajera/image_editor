@@ -2,14 +2,16 @@ import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_editor/core/constants/app_constants.dart';
 import 'package:image_editor/features/canvas/data/project_repository.dart';
 import 'package:image_editor/features/canvas/domain/models/project_model.dart';
 import 'package:image_editor/features/collage/domain/models/models.dart';
 import 'package:image_editor/features/layers/domain/models/image_layer.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
+
+part 'collage_engine.g.dart';
 
 /// Parameters passed to the background Isolate for framing and cropping a collage cell.
 class FramedCellParams {
@@ -339,8 +341,8 @@ class CollageEngine {
   }
 }
 
-/// Riverpod provider for [CollageEngine].
-final collageEngineProvider = Provider<CollageEngine>((ref) {
-  final projectRepo = ref.watch(projectRepositoryProvider);
-  return CollageEngine(projectRepository: projectRepo);
-});
+/// App-wide singleton [CollageEngine].
+@Riverpod(keepAlive: true)
+CollageEngine collageEngine(Ref ref) {
+  return CollageEngine(projectRepository: ref.watch(projectRepositoryProvider));
+}

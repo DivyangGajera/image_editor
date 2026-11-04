@@ -1,10 +1,12 @@
 import 'dart:ui';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_editor/features/canvas/data/project_repository.dart';
 import 'package:image_editor/features/layers/domain/models/image_layer.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
+
+part 'image_import_service.g.dart';
 
 /// 4:5 aspect ratio preset for Instagram Feed Posts.
 class CropAspectRatioPreset4x5 implements CropAspectRatioPresetData {
@@ -104,8 +106,10 @@ class ImageImportService {
   }
 }
 
-/// Riverpod provider for [ImageImportService].
-final imageImportServiceProvider = Provider<ImageImportService>((ref) {
-  final projectRepository = ref.watch(projectRepositoryProvider);
-  return ImageImportService(projectRepository: projectRepository);
-});
+/// App-wide singleton [ImageImportService].
+@Riverpod(keepAlive: true)
+ImageImportService imageImportService(Ref ref) {
+  return ImageImportService(
+    projectRepository: ref.watch(projectRepositoryProvider),
+  );
+}

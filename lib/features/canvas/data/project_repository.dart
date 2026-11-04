@@ -1,17 +1,18 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:image_editor/core/storage/storage_keys.dart';
 import 'package:image_editor/features/canvas/domain/models/project_model.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-/// Riverpod provider for singleton instance of [ProjectRepository].
-final projectRepositoryProvider = Provider<ProjectRepository>((ref) {
-  return ProjectRepository();
-});
+part 'project_repository.g.dart';
+
+/// App-wide singleton [ProjectRepository].
+@Riverpod(keepAlive: true)
+ProjectRepository projectRepository(Ref ref) => ProjectRepository();
 
 /// Repository managing local project sandbox files, directory isolation,
 /// and metadata persistence in Hive CE.
