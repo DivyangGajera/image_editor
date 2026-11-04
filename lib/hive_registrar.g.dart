@@ -9,6 +9,7 @@ import 'package:image_editor/features/layers/domain/models/doodle_layer.dart';
 import 'package:image_editor/features/layers/domain/models/image_layer.dart';
 import 'package:image_editor/features/layers/domain/models/sticker_layer.dart';
 import 'package:image_editor/features/layers/domain/models/text_layer.dart';
+import 'package:image_editor/features/stickers/domain/models/user_sticker.dart';
 
 extension HiveRegistrar on HiveInterface {
   void registerAdapters() {
@@ -18,6 +19,7 @@ extension HiveRegistrar on HiveInterface {
     registerAdapter(ProjectModelAdapter());
     registerAdapter(StickerLayerAdapter());
     registerAdapter(TextLayerAdapter());
+    registerAdapter(UserStickerAdapter());
   }
 }
 
@@ -29,5 +31,6 @@ extension IsolatedHiveRegistrar on IsolatedHiveInterface {
     registerAdapter(ProjectModelAdapter());
     registerAdapter(StickerLayerAdapter());
     registerAdapter(TextLayerAdapter());
+    registerAdapter(UserStickerAdapter());
   }
 }

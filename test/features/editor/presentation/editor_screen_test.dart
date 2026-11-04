@@ -12,6 +12,8 @@ import 'package:image_editor/features/editor/editor.dart';
 import 'package:image_editor/features/history/history.dart';
 import 'package:image_editor/features/layers/domain/models/models.dart';
 
+import '../../../helpers/pump_until.dart';
+
 void main() {
   late Directory tempDir;
   late ProjectRepository repository;
@@ -82,6 +84,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+
   Future<void> tapAndSettle(WidgetTester tester, Finder finder) async {
     await tester.ensureVisible(finder);
     await tester.pumpAndSettle();
@@ -142,10 +145,16 @@ void main() {
     expect((canvas().project.layers.first as ImageLayer).activeFilter, 'grayscale');
 
     // Undo is now available and reverts the filter.
-    final undo = tester.widget<IconButton>(find.byKey(const ValueKey('editor_undo')));
-    expect(undo.onPressed, isNotNull);
+    // History is written to disk before undo becomes available.
+    await pumpUntil(
+      tester,
+      () => tester.widget<IconButton>(find.byKey(const ValueKey('editor_undo'))).onPressed != null,
+    );
     await tapAndSettle(tester, find.byKey(const ValueKey('editor_undo')));
-    expect((canvas().project.layers.first as ImageLayer).activeFilter, isNull);
+    await pumpUntil(
+      tester,
+      () => (canvas().project.layers.first as ImageLayer).activeFilter == null,
+    );
   });
 
   testWidgets('a cropped photo offers Uncrop, which restores the original', (tester) async {

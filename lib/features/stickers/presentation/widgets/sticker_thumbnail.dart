@@ -1,68 +1,52 @@
 import 'package:flutter/material.dart';
-import 'package:image_editor/features/stickers/domain/models/sticker_item.dart';
 
-/// Interactive card thumbnail rendering a sticker asset with label and tap feedback.
+/// Tappable tile showing a sticker image (or an icon) with an optional label.
 class StickerThumbnail extends StatelessWidget {
   const StickerThumbnail({
     super.key,
-    required this.item,
+    required this.image,
     required this.onTap,
+    this.label,
+    this.onLongPress,
   });
 
-  /// The sticker metadata to display.
-  final StickerItem item;
-
-  /// Callback executed when the thumbnail is tapped.
+  final Widget image;
+  final String? label;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      key: ValueKey('sticker_thumbnail_${item.id}'),
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF1E1E2C),
-          borderRadius: BorderRadius.circular(12.0),
-          border: Border.all(
-            color: const Color(0xFF2E2E40),
-            width: 1.0,
-          ),
-        ),
-        padding: const EdgeInsets.all(8.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Center(
-                child: Image.asset(
-                  item.assetPath,
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) {
-                    return const Icon(
-                      Icons.local_offer_outlined,
-                      size: 36.0,
-                      color: Colors.white54,
-                    );
-                  },
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return Material(
+      color: colors.surfaceContainerLowest,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12.0),
+        side: BorderSide(color: colors.outlineVariant),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        child: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Column(
+            children: [
+              Expanded(child: Center(child: image)),
+              if (label != null) ...[
+                const SizedBox(height: 6.0),
+                Text(
+                  label!,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelSmall,
                 ),
-              ),
-            ),
-            const SizedBox(height: 6.0),
-            Text(
-              item.title,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 11.0,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.3,
-              ),
-            ),
-          ],
+              ],
+            ],
+          ),
         ),
       ),
     );

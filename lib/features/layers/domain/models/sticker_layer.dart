@@ -4,7 +4,8 @@ import 'canvas_layer.dart';
 
 part 'sticker_layer.g.dart';
 
-/// Represents a vector or pre-bundled raster sticker layer positioned on the canvas.
+/// A sticker on the canvas: either a bundled asset or one of the user's own
+/// stickers, copied into the project so the design stays self-contained.
 @HiveType(typeId: HiveTypeIds.stickerLayer)
 class StickerLayer extends CanvasLayer {
   const StickerLayer({
@@ -16,11 +17,22 @@ class StickerLayer extends CanvasLayer {
     super.zIndex = 0,
     super.isVisible = true,
     required this.assetPath,
+    this.relativeFilePath,
   });
 
-  /// Flutter asset bundle path (e.g. `assets/stickers/emoji_1.png`).
+  /// Flutter asset bundle path (e.g. `assets/stickers/emoji_1.png`), used
+  /// when [relativeFilePath] is null. For user stickers it keeps the
+  /// library path the sticker came from.
   @HiveField(7)
   final String assetPath;
+
+  /// Project-relative path of a user sticker's image file, or null for
+  /// bundled stickers.
+  @HiveField(8)
+  final String? relativeFilePath;
+
+  /// Whether this sticker is one of the user's own (file-based) stickers.
+  bool get isUserSticker => relativeFilePath != null;
 
   @override
   StickerLayer copyWith({
@@ -32,6 +44,7 @@ class StickerLayer extends CanvasLayer {
     int? zIndex,
     bool? isVisible,
     String? assetPath,
+    String? relativeFilePath,
   }) {
     return StickerLayer(
       id: id ?? this.id,
@@ -42,6 +55,7 @@ class StickerLayer extends CanvasLayer {
       zIndex: zIndex ?? this.zIndex,
       isVisible: isVisible ?? this.isVisible,
       assetPath: assetPath ?? this.assetPath,
+      relativeFilePath: relativeFilePath ?? this.relativeFilePath,
     );
   }
 
@@ -56,7 +70,8 @@ class StickerLayer extends CanvasLayer {
         other.rotation == rotation &&
         other.zIndex == zIndex &&
         other.isVisible == isVisible &&
-        other.assetPath == assetPath;
+        other.assetPath == assetPath &&
+        other.relativeFilePath == relativeFilePath;
   }
 
   @override
@@ -69,10 +84,11 @@ class StickerLayer extends CanvasLayer {
         zIndex,
         isVisible,
         assetPath,
+        relativeFilePath,
       );
 
   @override
   String toString() =>
-      'StickerLayer(id: $id, assetPath: $assetPath, x: $x, y: $y, '
+      'StickerLayer(id: $id, assetPath: $assetPath, file: $relativeFilePath, x: $x, y: $y, '
       'scale: $scale, rotation: $rotation, zIndex: $zIndex, isVisible: $isVisible)';
 }

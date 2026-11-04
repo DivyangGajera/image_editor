@@ -93,6 +93,14 @@ void main() {
           isVisible: false,
           assetPath: 'assets/stickers/badges/badge_bestseller.png',
         ),
+        StickerLayer(
+          id: 'user-sticker',
+          x: 0.2,
+          y: 0.2,
+          zIndex: 4,
+          assetPath: 'stickers/logo.png',
+          relativeFilePath: 'projects/round-trip/images/sticker_logo.png',
+        ),
       ],
     );
 
@@ -109,6 +117,8 @@ void main() {
       TextLayer,
       DoodleLayer,
       StickerLayer,
+      StickerLayer,
     ]);
+    expect((restored.layers.last as StickerLayer).isUserSticker, isTrue);
   });
 }

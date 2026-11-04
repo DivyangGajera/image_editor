@@ -253,6 +253,40 @@ void main() {
       expect(isGreen(x2, 75, 75), isFalse);
     });
 
+    test('draws user stickers from their project file', () async {
+      final sticker = img.Image(width: 10, height: 10)..clear(img.ColorRgba8(255, 0, 0, 255));
+      final file = File('${tempDir.path}/sticker.png');
+      await file.writeAsBytes(img.encodePng(sticker));
+      when(() => mockRepo.resolveRelativePath('projects/p/images/sticker.png'))
+          .thenAnswer((_) async => file);
+
+      final project = ProjectModel(
+        id: 'p',
+        title: 'Stickers',
+        canvasWidth: 40.0,
+        canvasHeight: 40.0,
+        layers: const [
+          StickerLayer(
+            id: 's',
+            x: 0.5,
+            y: 0.5,
+            assetPath: 'stickers/s.png',
+            relativeFilePath: 'projects/p/images/sticker.png',
+          ),
+        ],
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      final out = img.decodePng(
+        await CanvasExportService(projectRepository: mockRepo)
+            .renderAtSize(project: project, outputSize: const Size(40, 40)),
+      )!;
+      final center = out.getPixel(20, 20);
+      expect(center.r, greaterThan(200));
+      expect(center.g, lessThan(60));
+    });
+
     test('renderCanvasToBytes uses the resolution tier and keeps the aspect ratio', () async {
       final service = CanvasExportService(projectRepository: mockRepo);
       final project = ProjectModel(

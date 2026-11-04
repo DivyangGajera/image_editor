@@ -245,6 +245,13 @@ void main() {
             originalImagePath: 'projects/orig/images/original.png',
           ),
           const StickerLayer(id: 's', x: 0.1, y: 0.1, assetPath: 'assets/stickers/badges/b.png'),
+          const StickerLayer(
+            id: 'mine',
+            x: 0.2,
+            y: 0.2,
+            assetPath: 'stickers/logo.png',
+            relativeFilePath: 'projects/orig/images/sticker_logo.png',
+          ),
         ],
       );
       await repository.saveProject(original);
@@ -262,7 +269,12 @@ void main() {
       final copiedImage = copy.layers.first as ImageLayer;
       expect(copiedImage.relativeImagePath, 'projects/copy/images/a.png');
       expect(copiedImage.originalImagePath, 'projects/copy/images/original.png');
-      expect((copy.layers.last as StickerLayer).assetPath, 'assets/stickers/badges/b.png');
+      expect((copy.layers[1] as StickerLayer).assetPath, 'assets/stickers/badges/b.png');
+      expect((copy.layers[1] as StickerLayer).relativeFilePath, isNull);
+      expect(
+        (copy.layers[2] as StickerLayer).relativeFilePath,
+        'projects/copy/images/sticker_logo.png',
+      );
 
       final copiedFile = await repository.resolveRelativePath(copiedImage.relativeImagePath);
       expect(await copiedFile.readAsBytes(), [9, 9]);

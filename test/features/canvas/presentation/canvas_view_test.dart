@@ -9,6 +9,8 @@ import 'package:image_editor/features/canvas/canvas.dart';
 import 'package:image_editor/features/history/history.dart';
 import 'package:image_editor/features/layers/domain/models/models.dart';
 
+import '../../../helpers/pump_until.dart';
+
 void main() {
   group('CanvasView & TransformableBox Widget Tests', () {
     late Directory tempDir;
@@ -247,7 +249,10 @@ void main() {
       });
       await tester.pumpAndSettle();
 
-      expect(container.read(historyProvider(project.id)).totalUndoCount, 1);
+      await pumpUntil(
+        tester,
+        () => container.read(historyProvider(project.id)).totalUndoCount == 1,
+      );
 
       await tester.runAsync(() => container.read(canvasProvider(project.id).notifier).undo());
       await tester.pumpAndSettle();

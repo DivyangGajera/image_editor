@@ -12,6 +12,8 @@ import 'package:image_editor/features/canvas/canvas.dart';
 import 'package:image_editor/features/fonts/fonts.dart';
 import 'package:image_editor/features/layers/domain/models/models.dart';
 
+import '../../../helpers/pump_until.dart';
+
 class FakeFontServer implements HttpGetter {
   bool online = true;
   static final Uint8List ttf =
@@ -128,16 +130,6 @@ void main() {
   Future<void> tapReal(WidgetTester tester, Finder finder) =>
       real(tester, () async => tester.tap(finder));
 
-  /// Pumps frames (letting real I/O run) until [condition] holds, without
-  /// pumpAndSettle: a download spinner animates until the download ends.
-  Future<void> pumpUntil(WidgetTester tester, bool Function() condition) async {
-    for (var i = 0; i < 200 && !condition(); i++) {
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
-      await tester.pump(const Duration(milliseconds: 50));
-    }
-    expect(condition(), isTrue, reason: 'condition not reached in time');
-    await tester.pumpAndSettle();
-  }
 
   bool installed(String family) =>
       container.read(fontLibraryProvider).value?.isInstalled(family) ?? false;
@@ -169,6 +161,10 @@ void main() {
 
     server.online = true;
     await tapReal(tester, find.byKey(const ValueKey('retry_connection')));
+    await pumpUntil(
+      tester,
+      () => find.byKey(const ValueKey('font_search')).evaluate().isNotEmpty,
+    );
 
     expect(find.byKey(const ValueKey('offline_view')), findsNothing);
     expect(find.byKey(const ValueKey('font_search')), findsOneWidget);
@@ -214,6 +210,10 @@ void main() {
 
     filePicker.result = PickedFontFile(name: 'notes.ttf', bytes: Uint8List.fromList([1, 2, 3]));
     await tapReal(tester, find.byKey(const ValueKey('import_font_button')));
+    await pumpUntil(
+      tester,
+      () => find.text('This file is not a TTF or OTF font.').evaluate().isNotEmpty,
+    );
 
     expect(find.text('This file is not a TTF or OTF font.'), findsOneWidget);
     expect(container.read(fontLibraryProvider).value!.fonts, isEmpty);
@@ -228,6 +228,7 @@ void main() {
 
     filePicker.result = PickedFontFile(name: 'Kruti Dev 010.otf', bytes: otf);
     await tapReal(tester, find.byKey(const ValueKey('import_font_button')));
+    await pumpUntil(tester, () => installed('user:Kruti Dev 010'));
 
     expect(find.byKey(const ValueKey('font_row_user:Kruti Dev 010')), findsOneWidget);
     expect(find.text('Imported · 64 B'), findsOneWidget);
@@ -252,10 +253,10 @@ void main() {
     await openPicker(tester);
 
     await tapReal(tester, find.byKey(const ValueKey('delete_font_Anton')));
-    expect(find.textContaining('Used in 1 project'), findsOneWidget);
+    await pumpUntil(tester, () => find.textContaining('Used in 1 project').evaluate().isNotEmpty);
 
     await tapReal(tester, find.byKey(const ValueKey('confirm_delete_font')));
-    expect(container.read(fontLibraryProvider).value!.isInstalled('Anton'), isFalse);
+    await pumpUntil(tester, () => !installed('Anton'));
   });
 
   testWidgets('a missing current font shows a banner with one-tap re-download', (tester) async {

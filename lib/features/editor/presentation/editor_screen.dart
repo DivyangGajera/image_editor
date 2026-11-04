@@ -147,10 +147,10 @@ class _EditorWorkspace extends ConsumerWidget {
   }
 
   Future<void> _addSticker(BuildContext context, WidgetRef ref) async {
-    final sticker = await StickerPickerSheet.show(context);
-    if (sticker == null || !context.mounted) return;
+    final selection = await StickerPickerSheet.show(context);
+    if (selection == null || !context.mounted) return;
     await _guard(context, 'Could not add the sticker.', () async {
-      await ref.read(editorCommandsProvider(projectId)).addSticker(sticker);
+      await ref.read(editorCommandsProvider(projectId)).addSticker(selection);
     });
   }
 

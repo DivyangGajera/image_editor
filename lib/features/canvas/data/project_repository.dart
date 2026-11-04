@@ -134,6 +134,8 @@ class ProjectRepository {
                   ? null
                   : remap(layer.originalImagePath!),
             )
+          else if (layer is StickerLayer && layer.relativeFilePath != null)
+            layer.copyWith(relativeFilePath: remap(layer.relativeFilePath!))
           else
             layer,
       ],

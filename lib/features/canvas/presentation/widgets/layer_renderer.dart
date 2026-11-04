@@ -27,7 +27,7 @@ class LayerRenderer extends ConsumerWidget {
     } else if (concreteLayer is DoodleLayer) {
       return _renderDoodleLayer(context, concreteLayer);
     } else if (concreteLayer is StickerLayer) {
-      return _renderStickerLayer(context, concreteLayer);
+      return _renderStickerLayer(context, ref, concreteLayer);
     }
     return const SizedBox.shrink();
   }
@@ -84,11 +84,29 @@ class LayerRenderer extends ConsumerWidget {
     );
   }
 
-  Widget _renderStickerLayer(BuildContext context, StickerLayer layer) {
-    return Image.asset(
-      layer.assetPath,
-      fit: BoxFit.contain,
-      errorBuilder: (_, _, _) => _buildPlaceholder(Icons.emoji_emotions_outlined),
+  Widget _renderStickerLayer(BuildContext context, WidgetRef ref, StickerLayer layer) {
+    final filePath = layer.relativeFilePath;
+    if (filePath == null) {
+      return Image.asset(
+        layer.assetPath,
+        fit: BoxFit.contain,
+        errorBuilder: (_, _, _) => _buildPlaceholder(Icons.emoji_emotions_outlined),
+      );
+    }
+
+    return FutureBuilder<File>(
+      future: ref.watch(projectRepositoryProvider).resolveRelativePath(filePath),
+      builder: (context, snapshot) {
+        final file = snapshot.data;
+        if (file == null || !file.existsSync()) {
+          return _buildPlaceholder(Icons.emoji_emotions_outlined);
+        }
+        return Image.file(
+          file,
+          fit: BoxFit.contain,
+          errorBuilder: (_, _, _) => _buildPlaceholder(Icons.broken_image_outlined),
+        );
+      },
     );
   }
 
