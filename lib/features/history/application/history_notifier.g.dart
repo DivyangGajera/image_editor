@@ -152,7 +152,7 @@ final class HistoryNotifierProvider
   }
 }
 
-String _$historyNotifierHash() => r'7d0b9be966410828ad7b5d9432e075b54a9c9b66';
+String _$historyNotifierHash() => r'403bb1af4508746328759d0cb947b0dab1a71449';
 
 /// Riverpod notifier coordinating canvas undo/redo history operations.
 

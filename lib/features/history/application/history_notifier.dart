@@ -100,9 +100,7 @@ class HistoryNotifier extends _$HistoryNotifier {
       // Persisted history is read asynchronously; publish metrics once loaded.
       unawaited(
         _manager.load().then(
-          (_) {
-            if (ref.mounted) state = _computeState();
-          },
+          (_) => _publish(),
           onError: (Object error, StackTrace stackTrace) {
             // History stays empty; editing keeps working without undo.
             AppLogger.error(
@@ -130,29 +128,35 @@ class HistoryNotifier extends _$HistoryNotifier {
     );
   }
 
+  /// Publishes fresh metrics, unless this notifier was disposed while an
+  /// operation was awaiting disk I/O (e.g. the editor closed).
+  void _publish() {
+    if (ref.mounted) state = _computeState();
+  }
+
   /// Pushes an updated snapshot of layers into the undo history.
   Future<void> pushState(List<CanvasLayer> layers) async {
     await _manager.pushState(layers);
-    state = _computeState();
+    _publish();
   }
 
   /// Reverts to the previous state and moves current layers to redo.
   Future<List<CanvasLayer>?> undo(List<CanvasLayer> currentLayers) async {
     final result = await _manager.undo(currentLayers);
-    state = _computeState();
+    _publish();
     return result;
   }
 
   /// Restores the forward state and moves current layers to undo.
   Future<List<CanvasLayer>?> redo(List<CanvasLayer> currentLayers) async {
     final result = await _manager.redo(currentLayers);
-    state = _computeState();
+    _publish();
     return result;
   }
 
   /// Purges both undo and redo histories.
   Future<void> clear() async {
     await _manager.clear();
-    state = _computeState();
+    _publish();
   }
 }
