@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_editor/core/constants/app_constants.dart';
+import 'package:image_editor/core/storage/app_bootstrap.dart';
 import 'package:image_editor/core/theme/app_theme.dart';
 import 'package:image_editor/features/collage/collage.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AppBootstrap.initialize();
   runApp(
     const ProviderScope(
       child: OfflineImageEditorApp(),

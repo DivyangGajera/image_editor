@@ -1,10 +1,11 @@
 import 'package:hive_ce/hive.dart';
+import 'package:image_editor/core/storage/storage_keys.dart';
 import 'canvas_layer.dart';
 
 part 'sticker_layer.g.dart';
 
 /// Represents a vector or pre-bundled raster sticker layer positioned on the canvas.
-@HiveType(typeId: 3)
+@HiveType(typeId: HiveTypeIds.stickerLayer)
 class StickerLayer extends CanvasLayer {
   const StickerLayer({
     required super.id,

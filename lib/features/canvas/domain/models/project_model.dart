@@ -1,12 +1,13 @@
 import 'package:flutter/foundation.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:image_editor/core/constants/app_constants.dart';
+import 'package:image_editor/core/storage/storage_keys.dart';
 import 'package:image_editor/features/layers/domain/models/models.dart';
 
 part 'project_model.g.dart';
 
 /// Represents an offline image editing project session with canvas properties and layered entities.
-@HiveType(typeId: 4)
+@HiveType(typeId: HiveTypeIds.projectModel)
 class ProjectModel {
   const ProjectModel({
     required this.id,
