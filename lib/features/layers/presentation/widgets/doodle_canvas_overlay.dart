@@ -113,11 +113,14 @@ class _DoodleCanvasOverlayState extends State<DoodleCanvasOverlay> {
       return const SizedBox.shrink();
     }
 
+    // A snapshot of the points: passing the live list would make each new
+    // painter equal to the previous one (same list instance), so
+    // shouldRepaint returned false and the stroke only appeared on release.
     final inProgressLayer = DoodleLayer(
       id: 'in-progress-doodle',
       x: 0.5,
       y: 0.5,
-      points: _currentPoints,
+      points: List<List<double>>.of(_currentPoints),
       strokeColorValue: widget.strokeColor.toARGB32(),
       strokeWidth: widget.strokeWidth,
       hasGlow: widget.hasGlow,

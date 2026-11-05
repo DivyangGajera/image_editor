@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_editor/features/layers/domain/models/models.dart';
 import 'package:image_editor/features/layers/presentation/widgets/doodle_canvas_overlay.dart';
+import 'package:image_editor/features/layers/presentation/widgets/doodle_painter.dart';
 
 void main() {
   group('DoodleCanvasOverlay Widget Tests', () {
@@ -83,6 +84,47 @@ void main() {
       expect(points.map((p) => p[1]).reduce((a, b) => a < b ? a : b), 0.0);
       expect(finishedLayer!.x, inInclusiveRange(0.0, 1.0));
       expect(finishedLayer!.y, inInclusiveRange(0.0, 1.0));
+    });
+
+    testWidgets('the stroke repaints while the finger is still down', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 500.0,
+                height: 500.0,
+                child: DoodleCanvasOverlay(
+                  canvasSize: canvasSize,
+                  onDoodleFinished: (_) {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      DoodlePainter currentPainter() => tester
+          .widgetList<CustomPaint>(find.byType(CustomPaint))
+          .map((paint) => paint.painter)
+          .whereType<DoodlePainter>()
+          .single;
+
+      final gesture = await tester.startGesture(tester.getCenter(find.byType(DoodleCanvasOverlay)));
+      await gesture.moveBy(const Offset(30, 0));
+      await tester.pump();
+      final afterFirstMove = currentPainter();
+      final pointsAfterFirstMove = afterFirstMove.layer.points.length;
+
+      await gesture.moveBy(const Offset(30, 20));
+      await tester.pump();
+      final afterSecondMove = currentPainter();
+
+      expect(afterSecondMove.layer.points.length, greaterThan(pointsAfterFirstMove));
+      expect(afterSecondMove.shouldRepaint(afterFirstMove), isTrue,
+          reason: 'each new point must trigger a repaint before the finger lifts');
+
+      await gesture.up();
     });
   });
 }
