@@ -377,7 +377,13 @@ class _EditorWorkspace extends ConsumerWidget {
                     ),
                   ),
                 ),
-                if (isEmpty && ui.mode != EditorMode.draw) const Center(child: _EmptyCanvasHint()),
+                if (isEmpty && ui.mode != EditorMode.draw)
+                  Center(
+                    child: _EmptyCanvasHint(
+                      onAddPhoto: () => _addPhoto(context, ref),
+                      onAddText: () => _addText(context, ref),
+                    ),
+                  ),
                 const Positioned(
                   left: 0,
                   right: 0,
@@ -399,41 +405,71 @@ class _EditorWorkspace extends ConsumerWidget {
   }
 }
 
-/// Shown over an empty canvas: where to start.
+/// Shown over an empty canvas: where to start. Tapping the card adds a
+/// photo, like the Photo tool; the second button adds text.
 class _EmptyCanvasHint extends StatelessWidget {
-  const _EmptyCanvasHint();
+  const _EmptyCanvasHint({required this.onAddPhoto, required this.onAddText});
+
+  final VoidCallback onAddPhoto;
+  final VoidCallback onAddText;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    return IgnorePointer(
-      child: Container(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 40.0),
+      child: Material(
         key: const ValueKey('empty_canvas_hint'),
-        margin: const EdgeInsets.symmetric(horizontal: 48.0),
-        padding: const EdgeInsets.all(20.0),
-        decoration: BoxDecoration(
-          color: colors.surfaceContainerLowest.withValues(alpha: 0.92),
+        color: colors.surfaceContainerLowest.withValues(alpha: 0.95),
+        shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20.0),
-          border: Border.all(color: colors.outlineVariant),
+          side: BorderSide(color: colors.outlineVariant),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircleAvatar(
-              radius: 26.0,
-              backgroundColor: colors.primaryContainer,
-              child: Icon(Icons.add_photo_alternate_outlined, color: colors.primary),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onAddPhoto,
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircleAvatar(
+                  radius: 26.0,
+                  backgroundColor: colors.primaryContainer,
+                  child: Icon(Icons.add_photo_alternate_outlined, color: colors.primary),
+                ),
+                const SizedBox(height: 12.0),
+                Text('Start with a photo or some text', style: theme.textTheme.titleMedium, textAlign: TextAlign.center),
+                const SizedBox(height: 4.0),
+                Text(
+                  'Tap here to add a photo, or use the tools below.',
+                  style: theme.textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16.0),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 8.0,
+                  runSpacing: 8.0,
+                  children: [
+                    FilledButton.icon(
+                      key: const ValueKey('hint_add_photo'),
+                      onPressed: onAddPhoto,
+                      icon: const Icon(Icons.add_photo_alternate_outlined),
+                      label: const Text('Add photo'),
+                    ),
+                    OutlinedButton.icon(
+                      key: const ValueKey('hint_add_text'),
+                      onPressed: onAddText,
+                      icon: const Icon(Icons.title_rounded),
+                      label: const Text('Add text'),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            const SizedBox(height: 12.0),
-            Text('Start with a photo or some text', style: theme.textTheme.titleMedium, textAlign: TextAlign.center),
-            const SizedBox(height: 4.0),
-            Text(
-              'Use the tools below. Scroll them sideways for more.',
-              style: theme.textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
-              textAlign: TextAlign.center,
-            ),
-          ],
+          ),
         ),
       ),
     );

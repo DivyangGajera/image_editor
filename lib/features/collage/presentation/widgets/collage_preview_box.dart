@@ -12,11 +12,15 @@ class CollagePreviewBox extends StatelessWidget {
     required this.imagePaths,
     required this.config,
     required this.engine,
+    this.onAddPhotos,
   });
 
   final List<String> imagePaths;
   final CollageConfig config;
   final CollageEngine engine;
+
+  /// Opens the photo picker; the empty preview calls it when tapped.
+  final VoidCallback? onAddPhotos;
 
   @override
   Widget build(BuildContext context) {
@@ -32,51 +36,37 @@ class CollagePreviewBox extends StatelessWidget {
           color: colors.surfaceContainerLowest,
           borderRadius: BorderRadius.circular(16.0),
           border: Border.all(color: colors.outlineVariant, width: 1.5),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x14000000),
-              blurRadius: 12.0,
-              offset: Offset(0, 4),
-            ),
-          ],
+          boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 12.0, offset: Offset(0, 4))],
         ),
-        child: imagePaths.length < 2
-            ? _buildEmptyPlaceholder(context)
-            : _buildLayout(context),
+        child: imagePaths.length < 2 ? _buildEmptyPlaceholder(context) : _buildLayout(context),
       ),
     );
   }
 
   Widget _buildEmptyPlaceholder(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final remaining = 2 - imagePaths.length;
 
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.auto_awesome_mosaic_outlined,
-            size: 48.0,
-            color: colors.outline,
-          ),
-          const SizedBox(height: 12.0),
-          Text(
-            'Select 2 to 9 photos',
-            style: TextStyle(
-              color: colors.onSurface,
-              fontSize: 14.0,
-              fontWeight: FontWeight.w500,
+    return InkWell(
+      key: const ValueKey('collage_preview_add_photos'),
+      onTap: onAddPhotos,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.add_photo_alternate_outlined, size: 48.0, color: colors.primary),
+            const SizedBox(height: 12.0),
+            Text(
+              imagePaths.isEmpty ? 'Tap to select 2 to 9 photos' : 'Tap to add $remaining more photo',
+              style: TextStyle(color: colors.onSurface, fontSize: 14.0, fontWeight: FontWeight.w500),
             ),
-          ),
-          const SizedBox(height: 4.0),
-          Text(
-            'Live layout preview will appear here',
-            style: TextStyle(
-              color: colors.onSurfaceVariant,
-              fontSize: 12.0,
+            const SizedBox(height: 4.0),
+            Text(
+              'Live layout preview will appear here',
+              style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12.0),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -108,24 +98,18 @@ class CollagePreviewBox extends StatelessWidget {
               height: cellH,
               child: Container(
                 clipBehavior: Clip.hardEdge,
-                decoration: BoxDecoration(
-                  color: Color(config.borderColorValue),
-                ),
+                decoration: BoxDecoration(color: Color(config.borderColorValue)),
                 padding: EdgeInsets.all(scaledBorder),
                 child: Container(
                   clipBehavior: Clip.hardEdge,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  ),
+                  decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest),
                   child: Image.file(
                     File(cell.sourceImagePath),
                     fit: BoxFit.cover,
                     cacheWidth: cellW.isFinite && cellW > 0
                         ? (cellW * MediaQuery.devicePixelRatioOf(context)).round()
                         : null,
-                    errorBuilder: (_, error, stackTrace) => const Center(
-                      child: Icon(Icons.broken_image),
-                    ),
+                    errorBuilder: (_, error, stackTrace) => const Center(child: Icon(Icons.broken_image)),
                   ),
                 ),
               ),

@@ -143,6 +143,20 @@ void main() {
     expect(saved!.title, 'Diwali Offer');
   });
 
+  testWidgets('the empty canvas card adds a photo when tapped, or text from its button', (tester) async {
+    await tester.runAsync(() => createProject(const []));
+    await pumpEditor(tester);
+
+    await tapAndSettle(tester, find.text('Start with a photo or some text'));
+    expect(find.byKey(const ValueKey('photo_source_gallery')), findsOneWidget,
+        reason: 'same as the Photo tool');
+    Navigator.of(tester.element(find.byKey(const ValueKey('photo_source_gallery')))).pop();
+    await tester.pumpAndSettle();
+
+    await tapAndSettle(tester, find.byKey(const ValueKey('hint_add_text')));
+    expect(find.text('Add Text'), findsOneWidget, reason: 'same as the Text tool');
+  });
+
   testWidgets('Undo, Redo and Layers lead the tool row in every mode', (tester) async {
     await tester.runAsync(() => createProject(const [photo, caption]));
     await pumpEditor(tester);

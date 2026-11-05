@@ -130,6 +130,23 @@ void main() {
       expect(disabledTopButton.onPressed, isNull);
     });
 
+    testWidgets('tapping the empty preview opens the photo picker like Add', (tester) async {
+      when(() => mockPicker.pickMultiImage(limit: 9)).thenAnswer(
+        (_) async => [
+          XFile(tempImageFiles[0].path),
+          XFile(tempImageFiles[1].path),
+        ],
+      );
+      await tester.pumpWidget(buildTestableScreen());
+      expect(find.text('Tap to select 2 to 9 photos'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('collage_preview_add_photos')));
+      await tester.pumpAndSettle();
+
+      verify(() => mockPicker.pickMultiImage(limit: 9)).called(1);
+      expect(find.text('2 / 9 (Min 2)'), findsOneWidget);
+    });
+
     testWidgets('tapping layout preset tiles switches layout type', (tester) async {
       await tester.pumpWidget(buildTestableScreen());
 

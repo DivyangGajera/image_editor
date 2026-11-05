@@ -116,6 +116,7 @@ class _CollageSetupScreenState extends ConsumerState<CollageSetupScreen> {
               imagePaths: state.selectedImagePaths,
               config: state.config,
               engine: engine,
+              onAddPhotos: _pickImages,
             ),
             const SizedBox(height: 24.0),
             _buildSectionTitle('Layout Preset'),
