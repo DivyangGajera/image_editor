@@ -34,6 +34,9 @@ class CanvasView extends ConsumerWidget {
         return Size(project.canvasWidth, project.canvasHeight);
       }),
     );
+    final backgroundColor = ref.watch(
+      provider.select((async) => Color(async.requireValue.project.backgroundColorValue)),
+    );
 
     // Watch layer IDs ordered by zIndex. Rebuilds only when layer count or z-indexing shifts.
     final orderedLayerIds = ref.watch(
@@ -64,9 +67,9 @@ class CanvasView extends ConsumerWidget {
                 height: canvasSize.height,
                 child: Container(
                   clipBehavior: Clip.hardEdge,
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    boxShadow: [
+                  decoration: BoxDecoration(
+                    color: backgroundColor,
+                    boxShadow: const [
                       BoxShadow(
                         color: Color(0x33000000),
                         blurRadius: 24.0,

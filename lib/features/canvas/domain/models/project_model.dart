@@ -17,7 +17,12 @@ class ProjectModel {
     this.layers = const <CanvasLayer>[],
     required this.createdAt,
     required this.updatedAt,
+    this.backgroundColorValue = ProjectModel.defaultBackgroundColor,
   });
+
+  /// Canvas background of new projects (and of projects created before the
+  /// background was configurable).
+  static const int defaultBackgroundColor = 0xFFFFFFFF;
 
   /// Unique project ID (UUID v4).
   @HiveField(0)
@@ -47,6 +52,10 @@ class ProjectModel {
   @HiveField(6)
   final DateTime updatedAt;
 
+  /// ARGB solid color behind all layers, on screen and in exports.
+  @HiveField(7, defaultValue: ProjectModel.defaultBackgroundColor)
+  final int backgroundColorValue;
+
   ProjectModel copyWith({
     String? id,
     String? title,
@@ -55,6 +64,7 @@ class ProjectModel {
     List<CanvasLayer>? layers,
     DateTime? createdAt,
     DateTime? updatedAt,
+    int? backgroundColorValue,
   }) {
     return ProjectModel(
       id: id ?? this.id,
@@ -64,6 +74,7 @@ class ProjectModel {
       layers: layers ?? List<CanvasLayer>.from(this.layers),
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      backgroundColorValue: backgroundColorValue ?? this.backgroundColorValue,
     );
   }
 
@@ -77,7 +88,8 @@ class ProjectModel {
         other.canvasHeight == canvasHeight &&
         listEquals(other.layers, layers) &&
         other.createdAt == createdAt &&
-        other.updatedAt == updatedAt;
+        other.updatedAt == updatedAt &&
+        other.backgroundColorValue == backgroundColorValue;
   }
 
   @override
@@ -89,6 +101,7 @@ class ProjectModel {
         Object.hashAll(layers),
         createdAt,
         updatedAt,
+        backgroundColorValue,
       );
 
   @override

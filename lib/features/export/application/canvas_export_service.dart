@@ -92,7 +92,7 @@ class CanvasExportService {
     );
 
     // 1. Solid canvas background.
-    canvas.drawRect(Offset.zero & canvasSize, Paint()..color = const Color(0xFFFFFFFF));
+    canvas.drawRect(Offset.zero & canvasSize, Paint()..color = Color(project.backgroundColorValue));
 
     // 2. Layers in stacking order.
     final sortedLayers = List<CanvasLayer>.from(project.layers)

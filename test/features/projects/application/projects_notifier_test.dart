@@ -157,14 +157,14 @@ void main() {
   test('delete removes the project, its files and its undo history', () async {
     final project = await notifier().createBlank(canvasSize: CanvasFormat.square.size);
     final history = HistoryManager(projectId: project.id);
-    await history.pushState(const <CanvasLayer>[]);
+    await history.pushState(const CanvasSnapshot(layers: <CanvasLayer>[]));
     await history.dispose();
 
     await notifier().delete(project.id);
 
     expect(await projects(), isEmpty);
     expect(await thumbnailExists(project.id), isFalse);
-    final reopened = await Hive.openLazyBox<List<dynamic>>(
+    final reopened = await Hive.openLazyBox<dynamic>(
       HistoryManager.boxNameFor(project.id),
     );
     expect(reopened.isEmpty, isTrue);

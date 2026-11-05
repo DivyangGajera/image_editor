@@ -4,6 +4,7 @@ import 'package:image_editor/core/theme/app_theme.dart';
 import 'package:image_editor/features/canvas/application/canvas_notifier.dart';
 import 'package:image_editor/features/canvas/presentation/canvas_view.dart';
 import 'package:image_editor/features/editor/application/application.dart';
+import 'package:image_editor/features/editor/presentation/widgets/background_color_sheet.dart';
 import 'package:image_editor/features/editor/presentation/widgets/editor_bottom_bars.dart';
 import 'package:image_editor/features/editor/presentation/widgets/layers_sheet.dart';
 import 'package:image_editor/features/export/presentation/widgets/export_sheet.dart';
@@ -249,6 +250,11 @@ class _EditorWorkspace extends ConsumerWidget {
         onDraw: () {
           canvasNotifier.selectLayer(null);
           uiNotifier.enterDrawMode();
+        },
+        onBackground: () async {
+          final current = canvasNotifier.currentState.project.backgroundColorValue;
+          final color = await BackgroundColorSheet.show(context, initialColor: current);
+          if (color != null) await canvasNotifier.setBackgroundColor(color);
         },
       );
     }

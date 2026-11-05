@@ -156,7 +156,7 @@ class CanvasNotifier extends _$CanvasNotifier {
   /// is still saved if the editor closes (and this notifier is disposed) while
   /// history is being written.
   Future<void> _commit({
-    required List<CanvasLayer> before,
+    required CanvasSnapshot before,
     required ProjectModel after,
     String? Function()? selectedLayerId,
   }) async {
@@ -166,6 +166,12 @@ class CanvasNotifier extends _$CanvasNotifier {
     await history.pushState(before);
     await repository.saveProject(after);
   }
+
+  /// Undo snapshot of the current project, optionally with other [layers].
+  CanvasSnapshot _snapshot([List<CanvasLayer>? layers]) => CanvasSnapshot(
+        layers: layers ?? _current.project.layers,
+        backgroundColorValue: _current.project.backgroundColorValue,
+      );
 
   ProjectModel _withLayers(List<CanvasLayer> layers) {
     return _current.project.copyWith(layers: layers, updatedAt: DateTime.now());
@@ -183,7 +189,7 @@ class CanvasNotifier extends _$CanvasNotifier {
     }
 
     await _commit(
-      before: snapshot,
+      before: _snapshot(snapshot),
       after: _current.project.copyWith(updatedAt: DateTime.now()),
     );
   }
@@ -196,7 +202,7 @@ class CanvasNotifier extends _$CanvasNotifier {
     final indexedLayer = layer.copyWith(zIndex: before.length);
 
     await _commit(
-      before: before,
+      before: _snapshot(before),
       after: _withLayers([...before, indexedLayer]),
       selectedLayerId: select ? () => indexedLayer.id : null,
     );
@@ -216,7 +222,7 @@ class CanvasNotifier extends _$CanvasNotifier {
 
     final updated = List<CanvasLayer>.from(before)
       ..[index] = before[index].copyWith(x: x, y: y, scale: scale, rotation: rotation);
-    await _commit(before: before, after: _withLayers(updated));
+    await _commit(before: _snapshot(before), after: _withLayers(updated));
   }
 
   /// Replaces an existing layer with [layer], records history, and persists updates.
@@ -226,7 +232,7 @@ class CanvasNotifier extends _$CanvasNotifier {
     if (index == -1) return;
 
     final updated = List<CanvasLayer>.from(before)..[index] = layer;
-    await _commit(before: before, after: _withLayers(updated));
+    await _commit(before: _snapshot(before), after: _withLayers(updated));
   }
 
   /// Reorders layer from [oldIndex] to [newIndex] and recalculates sequential zIndices.
@@ -242,7 +248,7 @@ class CanvasNotifier extends _$CanvasNotifier {
 
     final updated = List<CanvasLayer>.from(before);
     updated.insert(newIndex, updated.removeAt(oldIndex));
-    await _commit(before: before, after: _withLayers(_reIndexLayers(updated)));
+    await _commit(before: _snapshot(before), after: _withLayers(_reIndexLayers(updated)));
   }
 
   /// Brings layer [id] to the front of the canvas (highest stacking zIndex).
@@ -269,7 +275,7 @@ class CanvasNotifier extends _$CanvasNotifier {
 
     final updated = List<CanvasLayer>.from(before)..removeAt(index);
     await _commit(
-      before: before,
+      before: _snapshot(before),
       after: _withLayers(_reIndexLayers(updated)),
       selectedLayerId: _current.selectedLayerId == id ? () => null : null,
     );
@@ -293,7 +299,7 @@ class CanvasNotifier extends _$CanvasNotifier {
     );
     final updated = List<CanvasLayer>.from(before)..insert(index + 1, copy);
     await _commit(
-      before: before,
+      before: _snapshot(before),
       after: _withLayers(_reIndexLayers(updated)),
       selectedLayerId: () => copy.id,
     );
@@ -310,7 +316,7 @@ class CanvasNotifier extends _$CanvasNotifier {
     final toggled = before[index].copyWith(isVisible: !before[index].isVisible);
     final updated = List<CanvasLayer>.from(before)..[index] = toggled;
     await _commit(
-      before: before,
+      before: _snapshot(before),
       after: _withLayers(updated),
       selectedLayerId: !toggled.isVisible && _current.selectedLayerId == id
           ? () => null
@@ -341,9 +347,21 @@ class CanvasNotifier extends _$CanvasNotifier {
       ..[index] = source.copyWith(isVisible: false)
       ..insert(index + 1, placed);
     await _commit(
-      before: before,
+      before: _snapshot(before),
       after: _withLayers(_reIndexLayers(updated)),
       selectedLayerId: () => placed.id,
+    );
+  }
+
+  /// Sets the solid canvas background to [colorValue] (ARGB); undoable.
+  Future<void> setBackgroundColor(int colorValue) async {
+    if (colorValue == _current.project.backgroundColorValue) return;
+    await _commit(
+      before: _snapshot(),
+      after: _current.project.copyWith(
+        backgroundColorValue: colorValue,
+        updatedAt: DateTime.now(),
+      ),
     );
   }
 
@@ -369,18 +387,21 @@ class CanvasNotifier extends _$CanvasNotifier {
     final history = _historyNotifier;
     final repository = _projectRepository;
     final base = _current.project;
+    final current = _snapshot();
 
-    final layers = forward
-        ? await history.redo(base.layers)
-        : await history.undo(base.layers);
-    if (layers == null) return;
+    final target = forward ? await history.redo(current) : await history.undo(current);
+    if (target == null) return;
 
-    final restored = base.copyWith(layers: layers, updatedAt: DateTime.now());
+    final restored = base.copyWith(
+      layers: target.layers,
+      backgroundColorValue: target.backgroundColorValue,
+      updatedAt: DateTime.now(),
+    );
     if (ref.mounted) {
       final selected = _current.selectedLayerId;
       _current = _current.copyWith(
         project: restored,
-        selectedLayerId: layers.any((l) => l.id == selected) ? null : () => null,
+        selectedLayerId: target.layers.any((l) => l.id == selected) ? null : () => null,
       );
     }
     // History already moved, so persist even if the editor has closed.

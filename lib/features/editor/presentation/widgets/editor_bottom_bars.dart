@@ -66,8 +66,10 @@ class MainToolBar extends StatelessWidget {
     required this.onAddText,
     required this.onAddSticker,
     required this.onDraw,
+    required this.onBackground,
   });
 
+  final VoidCallback? onBackground;
   final VoidCallback? onAddPhoto;
   final VoidCallback? onAddText;
   final VoidCallback? onAddSticker;
@@ -100,6 +102,12 @@ class MainToolBar extends StatelessWidget {
           icon: Icons.gesture_rounded,
           label: 'Draw',
           onPressed: onDraw,
+        ),
+        ToolButton(
+          key: const ValueKey('tool_background'),
+          icon: Icons.format_color_fill_rounded,
+          label: 'Background',
+          onPressed: onBackground,
         ),
       ],
     );
