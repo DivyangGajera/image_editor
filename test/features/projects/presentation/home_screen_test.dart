@@ -123,6 +123,13 @@ void main() {
 
     await tapAndSettle(tester, find.text('Old flyer'));
     expect(openedProjects, ['old']);
+    // Returning from the editor refreshes the thumbnail in the background;
+    // let it finish before storage is torn down.
+    await pumpUntil(
+      tester,
+      () => File('${tempDir.path}/projects/old/thumbnail.png').existsSync(),
+    );
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
   });
 
   testWidgets('rename and delete from the project options', (tester) async {
