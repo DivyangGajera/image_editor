@@ -211,6 +211,9 @@ class _MyFontsTab extends ConsumerWidget {
         _FontTile(
           key: const ValueKey('font_row_default'),
           title: 'Default',
+          // Text layers render the default in the system font, not the app's
+          // UI font, so preview it that way.
+          titleFamily: systemDefaultFontFamily,
           subtitle: 'Built in',
           isSelected: currentFamily == systemDefaultFontFamily,
           onTap: () => Navigator.of(context).pop(systemDefaultFontFamily),

@@ -145,6 +145,11 @@ void main() {
     await openPicker(tester, current: 'Poppins');
 
     expect(find.byKey(const ValueKey('font_row_default')), findsOneWidget);
+    final defaultTitle = tester.widget<Text>(
+      find.descendant(of: find.byKey(const ValueKey('font_row_default')), matching: find.text('Default')),
+    );
+    expect(defaultTitle.style!.fontFamily, systemDefaultFontFamily,
+        reason: 'previewed in the font text layers use, not the app UI font');
     await tester.tap(find.byKey(const ValueKey('font_row_default')));
     await tester.pumpAndSettle();
 
