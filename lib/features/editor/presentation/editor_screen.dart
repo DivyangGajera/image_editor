@@ -208,11 +208,21 @@ class _EditorWorkspace extends ConsumerWidget {
     final selectedLayer = ref.watch(
       canvasProvider(projectId).select((s) => s.requireValue.selectedLayer),
     );
+    final isEmpty = ref.watch(
+      canvasProvider(projectId).select((s) => s.requireValue.project.layers.isEmpty),
+    );
+
+    final quick = EditorQuickActions(
+      onUndo: history.canUndo ? canvasNotifier.undo : null,
+      onRedo: history.canRedo ? canvasNotifier.redo : null,
+      onLayers: () => LayersSheet.show(context, projectId),
+    );
 
     final Widget bottomBar;
     if (ui.mode == EditorMode.draw) {
       bottomBar = DrawToolBar(
         key: const ValueKey('draw_bar'),
+        quick: quick,
         colorValue: ui.drawColorValue,
         strokeWidth: ui.drawStrokeWidth,
         minStrokeWidth: EditorUiState.minStrokeWidth,
@@ -227,6 +237,7 @@ class _EditorWorkspace extends ConsumerWidget {
       final layer = selectedLayer;
       bottomBar = LayerContextBar(
         key: ValueKey('context_bar_${layer.runtimeType}'),
+        quick: quick,
         layer: layer,
         isFilterStripOpen: ui.isFilterStripOpen,
         isBusy: isSegmenting,
@@ -269,6 +280,7 @@ class _EditorWorkspace extends ConsumerWidget {
     } else {
       bottomBar = MainToolBar(
         key: const ValueKey('main_bar'),
+        quick: quick,
         onAddPhoto: () => _addPhoto(context, ref),
         onAddText: () => _addText(context, ref),
         onAddSticker: () => _addSticker(context, ref),
@@ -288,6 +300,8 @@ class _EditorWorkspace extends ConsumerWidget {
       backgroundColor: AppTheme.canvasBackdrop,
       appBar: AppBar(
         titleSpacing: 0,
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
+        shape: Border(bottom: BorderSide(color: Theme.of(context).colorScheme.outlineVariant)),
         title: Tooltip(
           message: 'Rename project',
           child: InkWell(
@@ -303,7 +317,12 @@ class _EditorWorkspace extends ConsumerWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Flexible(
-                    child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                   ),
                   const SizedBox(width: 4.0),
                   const Icon(Icons.edit_outlined, size: 16.0),
@@ -313,29 +332,14 @@ class _EditorWorkspace extends ConsumerWidget {
           ),
         ),
         actions: [
-          IconButton(
-            key: const ValueKey('editor_undo'),
-            tooltip: 'Undo',
-            icon: const Icon(Icons.undo_rounded),
-            onPressed: history.canUndo ? canvasNotifier.undo : null,
-          ),
-          IconButton(
-            key: const ValueKey('editor_redo'),
-            tooltip: 'Redo',
-            icon: const Icon(Icons.redo_rounded),
-            onPressed: history.canRedo ? canvasNotifier.redo : null,
-          ),
-          IconButton(
-            key: const ValueKey('editor_layers'),
-            tooltip: 'Layers',
-            icon: const Icon(Icons.layers_outlined),
-            onPressed: () => LayersSheet.show(context, projectId),
-          ),
           Padding(
             padding: const EdgeInsets.only(left: 4.0, right: 12.0),
-            child: FilledButton.tonal(
+            child: FilledButton(
               key: const ValueKey('editor_export'),
-              style: FilledButton.styleFrom(minimumSize: const Size(64.0, 40.0)),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(84.0, 40.0),
+                shape: const StadiumBorder(),
+              ),
               onPressed: () {
                 canvasNotifier.selectLayer(null);
                 ExportScreen.show(
@@ -372,6 +376,7 @@ class _EditorWorkspace extends ConsumerWidget {
                     ),
                   ),
                 ),
+                if (isEmpty && ui.mode != EditorMode.draw) const Center(child: _EmptyCanvasHint()),
                 const Positioned(
                   left: 0,
                   right: 0,
@@ -388,6 +393,47 @@ class _EditorWorkspace extends ConsumerWidget {
       bottomNavigationBar: AnimatedSwitcher(
         duration: const Duration(milliseconds: 180),
         child: bottomBar,
+      ),
+    );
+  }
+}
+
+/// Shown over an empty canvas: where to start.
+class _EmptyCanvasHint extends StatelessWidget {
+  const _EmptyCanvasHint();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return IgnorePointer(
+      child: Container(
+        key: const ValueKey('empty_canvas_hint'),
+        margin: const EdgeInsets.symmetric(horizontal: 48.0),
+        padding: const EdgeInsets.all(20.0),
+        decoration: BoxDecoration(
+          color: colors.surfaceContainerLowest.withValues(alpha: 0.92),
+          borderRadius: BorderRadius.circular(20.0),
+          border: Border.all(color: colors.outlineVariant),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(
+              radius: 26.0,
+              backgroundColor: colors.primaryContainer,
+              child: Icon(Icons.add_photo_alternate_outlined, color: colors.primary),
+            ),
+            const SizedBox(height: 12.0),
+            Text('Start with a photo or some text', style: theme.textTheme.titleMedium, textAlign: TextAlign.center),
+            const SizedBox(height: 4.0),
+            Text(
+              'Use the tools below. Scroll them sideways for more.',
+              style: theme.textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }

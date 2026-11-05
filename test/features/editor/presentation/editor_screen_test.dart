@@ -117,10 +117,11 @@ void main() {
 
     expect(find.text('Summer Sale'), findsOneWidget);
     expect(find.byKey(const ValueKey('main_bar')), findsOneWidget);
+    expect(find.byKey(const ValueKey('empty_canvas_hint')), findsOneWidget);
     for (final label in ['Photo', 'Text', 'Sticker', 'Draw']) {
       expect(find.text(label), findsOneWidget);
     }
-    final undo = tester.widget<IconButton>(find.byKey(const ValueKey('editor_undo')));
+    final undo = tester.widget<ToolButton>(find.byKey(const ValueKey('editor_undo')));
     expect(undo.onPressed, isNull);
   });
 
@@ -142,10 +143,42 @@ void main() {
     expect(saved!.title, 'Diwali Offer');
   });
 
+  testWidgets('Undo, Redo and Layers lead the tool row in every mode', (tester) async {
+    await tester.runAsync(() => createProject(const [photo, caption]));
+    await pumpEditor(tester);
+
+    void expectQuickActionsInRow() {
+      for (final key in ['editor_undo', 'editor_redo', 'editor_layers']) {
+        expect(
+          find.descendant(of: find.byKey(const ValueKey('editor_tool_row')), matching: find.byKey(ValueKey(key))),
+          findsOneWidget,
+          reason: key,
+        );
+      }
+    }
+
+    expectQuickActionsInRow();
+    expect(find.byKey(const ValueKey('editor_export')), findsOneWidget, reason: 'Export stays in the top bar');
+    expect(find.byKey(const ValueKey('empty_canvas_hint')), findsNothing, reason: 'the canvas has layers');
+
+    container.read(canvasProvider(projectId).notifier).selectLayer('photo');
+    await tester.pumpAndSettle();
+    expectQuickActionsInRow();
+
+    container.read(canvasProvider(projectId).notifier).selectLayer(null);
+    await tester.pumpAndSettle();
+    await tapAndSettle(tester, find.byKey(const ValueKey('tool_draw')));
+    expect(find.byKey(const ValueKey('draw_bar')), findsOneWidget);
+    expectQuickActionsInRow();
+  });
+
   testWidgets('the Background tool sets the canvas color', (tester) async {
     await tester.runAsync(() => createProject(const []));
     await pumpEditor(tester);
 
+    // The tool row scrolls: Background sits after Undo, Redo and Layers.
+    await tester.ensureVisible(find.byKey(const ValueKey('tool_background')));
+    await tester.pumpAndSettle();
     // The tap leads to a Hive write, so it starts in the real zone.
     await tester.runAsync(() async => tester.tap(find.byKey(const ValueKey('tool_background'))));
     await tester.pumpAndSettle();
@@ -188,7 +221,7 @@ void main() {
     // History is written to disk before undo becomes available.
     await pumpUntil(
       tester,
-      () => tester.widget<IconButton>(find.byKey(const ValueKey('editor_undo'))).onPressed != null,
+      () => tester.widget<ToolButton>(find.byKey(const ValueKey('editor_undo'))).onPressed != null,
     );
     await tapAndSettle(tester, find.byKey(const ValueKey('editor_undo')));
     await pumpUntil(
