@@ -34,7 +34,15 @@ class WatermarkConfig {
     this.opacity = 0.75,
     this.fontSize = 24.0,
     this.colorValue = 0xFFFFFFFF,
+    this.logoScale = defaultLogoScale,
   });
+
+  /// Default logo width, as a fraction of the canvas width.
+  static const double defaultLogoScale = 0.2;
+
+  /// Allowed range of [logoScale].
+  static const double minLogoScale = 0.08;
+  static const double maxLogoScale = 0.5;
 
   /// Whether this export includes the watermark. Not persisted: every export
   /// asks again.
@@ -60,6 +68,9 @@ class WatermarkConfig {
   /// ARGB text color.
   final int colorValue;
 
+  /// Logo width as a fraction of the canvas width.
+  final double logoScale;
+
   /// Whether the watermark has something to show.
   bool get isReady => switch (type) {
         WatermarkType.text => text.trim().isNotEmpty,
@@ -75,6 +86,7 @@ class WatermarkConfig {
     double? opacity,
     double? fontSize,
     int? colorValue,
+    double? logoScale,
     bool clearLogo = false,
   }) {
     return WatermarkConfig(
@@ -86,6 +98,7 @@ class WatermarkConfig {
       opacity: opacity ?? this.opacity,
       fontSize: fontSize ?? this.fontSize,
       colorValue: colorValue ?? this.colorValue,
+      logoScale: logoScale ?? this.logoScale,
     );
   }
 
@@ -98,6 +111,7 @@ class WatermarkConfig {
         'opacity': opacity,
         'fontSize': fontSize,
         'colorValue': colorValue,
+        'logoScale': logoScale,
       };
 
   /// Restores settings saved with [toMap]; unknown or missing values fall
@@ -115,6 +129,9 @@ class WatermarkConfig {
       opacity: map['opacity'] is num ? (map['opacity'] as num).toDouble() : defaults.opacity,
       fontSize: map['fontSize'] is num ? (map['fontSize'] as num).toDouble() : defaults.fontSize,
       colorValue: map['colorValue'] is int ? map['colorValue'] as int : defaults.colorValue,
+      logoScale: map['logoScale'] is num
+          ? (map['logoScale'] as num).toDouble().clamp(minLogoScale, maxLogoScale).toDouble()
+          : defaults.logoScale,
     );
   }
 
@@ -129,7 +146,8 @@ class WatermarkConfig {
           position == other.position &&
           opacity == other.opacity &&
           fontSize == other.fontSize &&
-          colorValue == other.colorValue;
+          colorValue == other.colorValue &&
+          logoScale == other.logoScale;
 
   @override
   int get hashCode => Object.hash(
@@ -141,5 +159,6 @@ class WatermarkConfig {
         opacity,
         fontSize,
         colorValue,
+        logoScale,
       );
 }

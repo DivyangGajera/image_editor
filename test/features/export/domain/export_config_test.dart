@@ -117,6 +117,7 @@ void main() {
         opacity: 0.4,
         fontSize: 32.0,
         colorValue: 0xFF000000,
+        logoScale: 0.35,
       );
 
       final restored = WatermarkConfig.fromMap(config.toMap());
@@ -130,6 +131,13 @@ void main() {
         'position': 42,
       });
       expect(restored, const WatermarkConfig());
+    });
+
+    test('a saved logo size is kept within the allowed range', () {
+      expect(WatermarkConfig.fromMap(<String, Object?>{'logoScale': 9.0}).logoScale, WatermarkConfig.maxLogoScale);
+      expect(WatermarkConfig.fromMap(<String, Object?>{'logoScale': 0.0}).logoScale, WatermarkConfig.minLogoScale);
+      expect(WatermarkConfig.fromMap(<String, Object?>{}).logoScale, WatermarkConfig.defaultLogoScale,
+          reason: 'settings saved before logo sizes existed keep the old size');
     });
 
     test('isReady needs text for text watermarks and a file for logos', () {

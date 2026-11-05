@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -8,6 +9,7 @@ import 'package:image/image.dart' as img;
 import 'package:image_editor/core/utils/color_filters.dart';
 import 'package:image_editor/features/canvas/data/project_repository.dart';
 import 'package:image_editor/features/canvas/domain/models/models.dart';
+import 'package:image_editor/features/export/application/watermark_renderer.dart';
 import 'package:image_editor/features/export/domain/models/models.dart';
 import 'package:image_editor/features/fonts/application/font_library_notifier.dart';
 import 'package:image_editor/features/fonts/application/font_resolver.dart';
@@ -75,6 +77,43 @@ class CanvasExportService {
     int jpegQuality = 95,
     WatermarkConfig watermark = const WatermarkConfig(),
   }) async {
+    final uiImage = await _renderImage(project: project, outputSize: outputSize, watermark: watermark);
+    final byteData = await uiImage.toByteData(format: ui.ImageByteFormat.png);
+    uiImage.dispose();
+    if (byteData == null) {
+      throw StateError('Failed to encode headless canvas image to bytes.');
+    }
+
+    final pngBytes = byteData.buffer.asUint8List();
+
+    // JPEG encoding is CPU heavy: run it in a background isolate.
+    if (format == ExportFormat.jpeg) {
+      return Isolate.run(() => _encodeJpegInIsolate(pngBytes, jpegQuality));
+    }
+
+    return pngBytes;
+  }
+
+  /// Renders [project] without a watermark, with its longest edge at most
+  /// [maxEdge] pixels, for previews. The caller disposes the image.
+  Future<ui.Image> renderPreview(ProjectModel project, {double maxEdge = 1080.0}) {
+    final canvasSize = Size(project.canvasWidth, project.canvasHeight);
+    final factor = math.min(1.0, maxEdge / math.max(canvasSize.width, canvasSize.height));
+    return _renderImage(
+      project: project,
+      outputSize: Size(
+        math.max(1.0, (canvasSize.width * factor).roundToDouble()),
+        math.max(1.0, (canvasSize.height * factor).roundToDouble()),
+      ),
+      watermark: const WatermarkConfig(),
+    );
+  }
+
+  Future<ui.Image> _renderImage({
+    required ProjectModel project,
+    required Size outputSize,
+    required WatermarkConfig watermark,
+  }) async {
     final canvasSize = Size(project.canvasWidth, project.canvasHeight);
     final pixelWidth = outputSize.width.round();
     final pixelHeight = outputSize.height.round();
@@ -130,21 +169,8 @@ class CanvasExportService {
     // 4. Rasterize at the output resolution.
     final picture = recorder.endRecording();
     final uiImage = await picture.toImage(pixelWidth, pixelHeight);
-    final byteData = await uiImage.toByteData(format: ui.ImageByteFormat.png);
-    uiImage.dispose();
     picture.dispose();
-    if (byteData == null) {
-      throw StateError('Failed to encode headless canvas image to bytes.');
-    }
-
-    final pngBytes = byteData.buffer.asUint8List();
-
-    // 5. JPEG encoding is CPU heavy: run it in a background isolate.
-    if (format == ExportFormat.jpeg) {
-      return Isolate.run(() => _encodeJpegInIsolate(pngBytes, jpegQuality));
-    }
-
-    return pngBytes;
+    return uiImage;
   }
 
   Future<void> _drawImageLayer(Canvas canvas, ImageLayer layer) async {
@@ -224,117 +250,26 @@ class CanvasExportService {
     }
   }
 
-  /// Margin between a corner watermark and the canvas edge, as a fraction of
-  /// the canvas's shorter side.
-  static const double watermarkMarginFraction = 0.03;
-
-  /// Width of a logo watermark as a fraction of the canvas width.
-  static const double logoWidthFraction = 0.2;
-
-  Future<void> _drawWatermark(
-    Canvas canvas,
-    WatermarkConfig watermark,
-    Size canvasSize,
-  ) async {
-    final margin = canvasSize.shortestSide * watermarkMarginFraction;
-
-    if (watermark.type == WatermarkType.text) {
-      final painter = TextPainter(
-        text: TextSpan(
-          text: watermark.text,
-          style: TextStyle(
-            inherit: false,
-            color: Color(watermark.colorValue).withValues(alpha: watermark.opacity),
-            fontSize: watermark.fontSize,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-
-      _placeWatermark(
-        canvas,
-        canvasSize: canvasSize,
-        itemSize: painter.size,
-        margin: margin,
-        position: watermark.position,
-        draw: (offset) => painter.paint(canvas, offset),
-      );
-      painter.dispose();
-      return;
-    }
-
-    final logoPath = watermark.logoRelativePath;
-    if (logoPath == null) return;
-
+  /// Decodes the watermark logo at app-relative [relativePath], or returns
+  /// null when it is missing or unreadable. The caller disposes it.
+  Future<ui.Image?> loadWatermarkLogo(String relativePath) async {
     try {
-      final logoBytes = await (await _resolveAppFile(logoPath)).readAsBytes();
-      final logo = await _decodeImageBytes(logoBytes);
-      if (logo == null) return;
-
-      final width = canvasSize.width * logoWidthFraction;
-      final height = width * logo.height / logo.width;
-      final source = Rect.fromLTWH(0, 0, logo.width.toDouble(), logo.height.toDouble());
-      final paint = Paint()
-        ..color = Colors.white.withValues(alpha: watermark.opacity)
-        ..filterQuality = FilterQuality.high;
-
-      _placeWatermark(
-        canvas,
-        canvasSize: canvasSize,
-        itemSize: Size(width, height),
-        margin: margin,
-        position: watermark.position,
-        draw: (offset) => canvas.drawImageRect(
-          logo,
-          source,
-          offset & Size(width, height),
-          paint,
-        ),
-      );
-      logo.dispose();
+      final file = await _resolveAppFile(relativePath);
+      if (!await file.exists()) return null;
+      return await _decodeImageBytes(await file.readAsBytes());
     } catch (_) {
-      // A missing or unreadable logo must not fail the whole export.
+      return null;
     }
   }
 
-  /// Draws a watermark item of [itemSize] at [position], or repeats it in a
-  /// rotated diagonal pattern for [WatermarkPosition.tiled].
-  void _placeWatermark(
-    Canvas canvas, {
-    required Size canvasSize,
-    required Size itemSize,
-    required double margin,
-    required WatermarkPosition position,
-    required void Function(Offset topLeft) draw,
-  }) {
-    switch (position) {
-      case WatermarkPosition.bottomRight:
-        draw(Offset(
-          canvasSize.width - itemSize.width - margin,
-          canvasSize.height - itemSize.height - margin,
-        ));
-      case WatermarkPosition.bottomLeft:
-        draw(Offset(margin, canvasSize.height - itemSize.height - margin));
-      case WatermarkPosition.center:
-        draw(Offset(
-          (canvasSize.width - itemSize.width) / 2.0,
-          (canvasSize.height - itemSize.height) / 2.0,
-        ));
-      case WatermarkPosition.tiled:
-        final stepX = itemSize.width * 1.8;
-        final stepY = itemSize.height * 4.0;
-        if (stepX <= 0 || stepY <= 0) return;
-        for (var y = -itemSize.height; y < canvasSize.height + stepY; y += stepY) {
-          for (var x = -itemSize.width; x < canvasSize.width + stepX; x += stepX) {
-            canvas.save();
-            canvas.translate(x, y);
-            canvas.rotate(-0.35); // about -20 degrees
-            draw(Offset.zero);
-            canvas.restore();
-          }
-        }
-    }
+  Future<void> _drawWatermark(Canvas canvas, WatermarkConfig watermark, Size canvasSize) async {
+    final logoPath = watermark.logoRelativePath;
+    // A missing or unreadable logo must not fail the whole export.
+    final logo = watermark.type == WatermarkType.logo && logoPath != null
+        ? await loadWatermarkLogo(logoPath)
+        : null;
+    WatermarkRenderer.paint(canvas, canvasSize, watermark, logo: logo);
+    logo?.dispose();
   }
 
   static Future<ui.Image?> _decodeImageBytes(Uint8List bytes) async {
