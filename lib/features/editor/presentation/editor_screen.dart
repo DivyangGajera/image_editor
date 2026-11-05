@@ -11,6 +11,7 @@ import 'package:image_editor/features/history/application/history_notifier.dart'
 import 'package:image_editor/features/layers/domain/models/models.dart';
 import 'package:image_editor/features/layers/presentation/widgets/doodle_canvas_overlay.dart';
 import 'package:image_editor/features/layers/presentation/widgets/text_edit_sheet.dart';
+import 'package:image_editor/features/projects/presentation/widgets/project_actions_sheet.dart';
 import 'package:image_editor/features/segmentation/application/segmentation_notifier.dart';
 import 'package:image_editor/features/segmentation/presentation/widgets/segmentation_progress_bar.dart';
 import 'package:image_editor/features/stickers/presentation/widgets/sticker_picker_sheet.dart';
@@ -255,7 +256,31 @@ class _EditorWorkspace extends ConsumerWidget {
     return Scaffold(
       backgroundColor: AppTheme.canvasBackdrop,
       appBar: AppBar(
-        title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        titleSpacing: 0,
+        title: Tooltip(
+          message: 'Rename project',
+          child: InkWell(
+            key: const ValueKey('editor_title'),
+            borderRadius: BorderRadius.circular(8.0),
+            onTap: () async {
+              final newTitle = await showRenameProjectDialog(context, title);
+              if (newTitle != null) await canvasNotifier.renameProject(newTitle);
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ),
+                  const SizedBox(width: 4.0),
+                  const Icon(Icons.edit_outlined, size: 16.0),
+                ],
+              ),
+            ),
+          ),
+        ),
         actions: [
           IconButton(
             key: const ValueKey('editor_undo'),

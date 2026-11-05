@@ -116,6 +116,24 @@ void main() {
     expect(undo.onPressed, isNull);
   });
 
+  testWidgets('tapping the project name renames the project', (tester) async {
+    await tester.runAsync(() => createProject(const []));
+    await pumpEditor(tester);
+
+    // The tap starts dialog → save; it must run in the real zone so the
+    // save's Hive write can complete.
+    await tester.runAsync(() async => tester.tap(find.byKey(const ValueKey('editor_title'))));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('rename_field')), 'Diwali Offer');
+    await tester.pump();
+    await tapAndSettle(tester, find.byKey(const ValueKey('rename_save')));
+    await pumpUntil(tester, () => canvas().project.title == 'Diwali Offer');
+
+    expect(find.text('Diwali Offer'), findsOneWidget);
+    final saved = await tester.runAsync(() => repository.loadProject(projectId));
+    expect(saved!.title, 'Diwali Offer');
+  });
+
   testWidgets('shows an error page for a project that does not exist', (tester) async {
     await tester.runAsync(() => createProject(const []));
     await pumpEditor(tester, id: 'missing');

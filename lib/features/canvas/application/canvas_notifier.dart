@@ -347,6 +347,18 @@ class CanvasNotifier extends _$CanvasNotifier {
     );
   }
 
+  /// Renames the project. Blank titles are ignored. Not part of the undo
+  /// history, since the title is not canvas content.
+  Future<void> renameProject(String title) async {
+    final trimmed = title.trim();
+    if (trimmed.isEmpty || trimmed == _current.project.title) return;
+
+    final repository = _projectRepository;
+    final renamed = _current.project.copyWith(title: trimmed, updatedAt: DateTime.now());
+    _current = _current.copyWith(project: renamed);
+    await repository.saveProject(renamed);
+  }
+
   /// Reverts to the previous state recorded in the [HistoryNotifier].
   Future<void> undo() => _travel(forward: false);
 
