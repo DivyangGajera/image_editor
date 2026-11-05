@@ -6,7 +6,7 @@ import 'package:image_editor/features/canvas/presentation/canvas_view.dart';
 import 'package:image_editor/features/editor/application/application.dart';
 import 'package:image_editor/features/editor/presentation/widgets/editor_bottom_bars.dart';
 import 'package:image_editor/features/editor/presentation/widgets/layers_sheet.dart';
-import 'package:image_editor/features/export/presentation/widgets/export_dialog.dart';
+import 'package:image_editor/features/export/presentation/widgets/export_sheet.dart';
 import 'package:image_editor/features/history/application/history_notifier.dart';
 import 'package:image_editor/features/layers/domain/models/models.dart';
 import 'package:image_editor/features/layers/presentation/widgets/doodle_canvas_overlay.dart';
@@ -282,7 +282,7 @@ class _EditorWorkspace extends ConsumerWidget {
               style: FilledButton.styleFrom(minimumSize: const Size(64.0, 40.0)),
               onPressed: () {
                 canvasNotifier.selectLayer(null);
-                ExportDialog.show(
+                ExportSheet.show(
                   context,
                   ref.read(canvasProvider(projectId)).requireValue.project,
                 );
