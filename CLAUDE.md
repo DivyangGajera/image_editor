@@ -38,10 +38,12 @@ Each feature in `lib/features/<feature>/` has a barrel (`<feature>.dart`), and s
 ## Core editing data flow
 - `ProjectModel` (Hive typeId 4) holds the canvas size and a `List<CanvasLayer>`. List index == `zIndex`, from bottom to top.
 - `CanvasLayer` subclasses: `ImageLayer`=0, `TextLayer`=1, `DoodleLayer`=2, `StickerLayer`=3. Type IDs are registered in `HiveTypeIds` (`core/storage/storage_keys.dart`): also `FontEntry`=5 and `UserSticker`=6. Never reuse a type ID or a retired `@HiveField` index (`ImageLayer` field 10 is retired).
+- Providers that widgets only `read` are disposed right after the read. Anything holding a provider's `ref` across an `await` must instead capture the notifier instances up front (see `editorCommandsProvider`). This caused the "could not add photo/sticker" bug.
 - Layer `x`/`y` are **normalized** (0–1, layer center). `copyWith` on the base class is polymorphic over the base fields.
 - `CanvasNotifier` (AsyncNotifier keyed by project ID) loads the project from `ProjectRepository`. Mutations go through `_commit`: state is updated synchronously, then the previous layers are pushed to history and the project is saved. Dependencies are captured before awaiting, so edits survive disposal.
 - Gestures follow begin → preview → commit: `beginInteraction` snapshots the layers, `previewTransform` updates state only (no history, no disk), and `commitInteraction` records one undo step. `TransformableBox` converts screen deltas using the canvas view scale (`CanvasCoordinateConverter`).
-- `HistoryManager` is a persistent 500-step undo/redo engine. Every snapshot is written through to a Hive `LazyBox` (`history_<projectId>`, with a `meta` key), and only the newest 50 are cached in RAM. It survives restarts, and all operations run through a serial queue.
+- `HistoryManager` is a persistent 500-step undo/redo engine. Each undo step is a `CanvasSnapshot` (Hive typeId 7: layers plus the background color), written through to a Hive `LazyBox<dynamic>` (`history_<projectId>`, with a `meta` key); only the newest 50 are cached in RAM. Legacy frames (plain layer lists) still load, as white. It survives restarts, and all operations run through a serial queue.
+- `ProjectModel.backgroundColorValue` (HiveField 7, default white) is the solid canvas background, set with the editor's Background tool (`CanvasNotifier.setBackgroundColor`, undoable).
 - Images are normalized on import (`ImageNormalizer`, in an isolate: EXIF baked, ≤2048 px, JPEG unless transparent). The uncropped original is kept (`originalImagePath`) so Crop/Uncrop can be redone.
 - Doodle points are relative to the stroke's bounding box (`DoodleGeometry`).
 
@@ -61,6 +63,11 @@ Each feature in `lib/features/<feature>/` has a barrel (`<feature>.dart`), and s
 - `ExportNotifier` saves through `GallerySaver` (gal) into the "Chitred" album.
 - The brand watermark (`WatermarkSettingsNotifier`) is configured once. `isEnabled` is never persisted: in the export sheet, the main **Export** button exports without the watermark, and **Export with watermark** is the alternative.
 
+## Background removal (`features/segmentation`)
+- ML Kit **Subject Segmentation** (people, pets, products, cars), not Selfie Segmentation. The model is delivered by Google Play services; the manifest's `com.google.mlkit.vision.DEPENDENCIES=subject_segment` requests it at install time.
+- `BackgroundRemovalService.cutOut(bytes)` returns a transparent PNG. `SubjectMasker` is the seam for tests. `BackgroundRemovalException` carries user-facing messages (no subject; model not ready).
+- Every image import (editor photo, new project from photo, My stickers, watermark logo) is followed by `BackgroundRemovalPrompt`, which returns the cut-out bytes or null to keep the original. Cut-out photos have no `originalImagePath`.
+
 ## Heavy processing (always off the UI isolate)
 Background removal (`PixelCutoutProcessor`), collage cells (`CollageEngine`), image/sticker/logo normalization, and JPEG encoding all run in `Isolate.run`. Pass only plain data across the isolate boundary.
 
@@ -68,6 +75,7 @@ Background removal (`PixelCutoutProcessor`), collage cells (`CollageEngine`), im
 - Widget tests run in a fake-async zone, but Hive and file I/O complete in real time. Do real I/O in `setUp` or inside `tester.runAsync`, and start gestures that lead to I/O inside `runAsync`.
 - Wait for outcomes with `test/helpers/pump_until.dart` instead of fixed sleeps, which are flaky when the full suite runs in parallel.
 - `test/helpers/fixed_font_library.dart` fakes installed fonts.
+- Register Hive adapters only through `AppBootstrap.registerAdapters` (the generated registrar). Reference Hive default values with their class name, because the generator copies them into the adapter unqualified.
 
 ## Android
 `minSdk` 24. `WRITE_EXTERNAL_STORAGE` (maxSdkVersion 29) and `requestLegacyExternalStorage` are required by gal for gallery saving on Android 9/10. Native libraries must stay 16 KB page-aligned: check with `zipalign -c -P 16` and the ELF LOAD alignment.
