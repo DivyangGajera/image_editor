@@ -293,10 +293,12 @@ class CanvasNotifier extends _$CanvasNotifier {
     if (index == -1) return null;
 
     final original = before[index];
+    // The copy is placed to be moved into position, so it starts unlocked.
     final copy = original.copyWith(
       id: const Uuid().v4(),
       x: (original.x + duplicateOffset).clamp(-0.5, 1.5),
       y: (original.y + duplicateOffset).clamp(-0.5, 1.5),
+      isLocked: false,
     );
     final updated = List<CanvasLayer>.from(before)..insert(index + 1, copy);
     await _commit(
@@ -307,8 +309,6 @@ class CanvasNotifier extends _$CanvasNotifier {
     return copy.id;
   }
 
-  /// Shows or hides layer [id]. Hidden layers are neither rendered nor exported
-  /// and are deselected; they remain listed in the layers panel.
   /// Locks or unlocks layer [id] against moving, resizing and rotating on
   /// the canvas (undoable). It stays selected so it can be unlocked again.
   Future<void> toggleLock(String id) async {
@@ -321,6 +321,8 @@ class CanvasNotifier extends _$CanvasNotifier {
     await _commit(before: _snapshot(before), after: _withLayers(updated));
   }
 
+  /// Shows or hides layer [id]. Hidden layers are neither rendered nor exported
+  /// and are deselected; they remain listed in the layers panel.
   Future<void> toggleVisibility(String id) async {
     final before = _current.project.layers;
     final index = before.indexWhere((l) => l.id == id);
