@@ -78,4 +78,4 @@ Background removal (`PixelCutoutProcessor`), collage cells (`CollageEngine`), im
 - Register Hive adapters only through `AppBootstrap.registerAdapters` (the generated registrar). Reference Hive default values with their class name, because the generator copies them into the adapter unqualified.
 
 ## Android
-`minSdk` 24. `WRITE_EXTERNAL_STORAGE` (maxSdkVersion 29) and `requestLegacyExternalStorage` are required by gal for gallery saving on Android 9/10. Native libraries must stay 16 KB page-aligned: check with `zipalign -c -P 16` and the ELF LOAD alignment.
+`minSdk` 24. `WRITE_EXTERNAL_STORAGE` (maxSdkVersion 29) and `requestLegacyExternalStorage` are required by gal for gallery saving on Android 9/10. Release builds are shrunk by R8: `android/app/proguard-rules.pro` keeps ML Kit and Play services classes, which they look up by name at runtime (without it, background removal crashes with null-reference errors in release only). Native libraries must stay 16 KB page-aligned: check with `zipalign -c -P 16` and the ELF LOAD alignment.
