@@ -26,7 +26,7 @@ Work on short-lived branches off `master` (`feat/*`, `fix/*`, `refactor/*`, `cho
 ## App overview
 Chitred ("Chitred: The Photo Editor") is an offline Android photo editor with promotional-graphics tools: Riverpod 3 with codegen, Hive CE, light Material 3 theme (`core/theme/app_theme.dart`).
 
-`main()` runs `AppBootstrap.initialize()` (Hive in `<docs>/hive/`, all adapters via the generated registrar), pre-loads the font library, then starts on `HomeScreen` (project gallery) → `EditorScreen(projectId)` → `ExportScreen`.
+`main()` runs `AppBootstrap.initialize()` (Hive in `<docs>/hive/`, all adapters via the generated registrar), pre-loads the font library, reads the first-run flag (`OnboardingRepository`, settings box) to show `WelcomeScreen` once, then starts on `HomeScreen` (project gallery) → `EditorScreen(projectId)` → `ExportScreen`.
 
 Each feature in `lib/features/<feature>/` has a barrel (`<feature>.dart`), and so does each layer folder.
 
