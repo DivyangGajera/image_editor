@@ -88,12 +88,16 @@ class ImageImportService {
   ///
   /// The original is kept so the crop can be redone or reset later. Returns
   /// `null` (leaving no files behind) when the user cancels picking or cropping.
+  /// [onPicked] is called once a photo was chosen, before the slow
+  /// conversion starts (e.g. to show a loading indicator).
   Future<ImportedPhoto?> importPhoto({
     required ImageSource source,
     required String projectId,
+    void Function()? onPicked,
   }) async {
     final pickedFile = await _picker.pickImage(source: source);
     if (pickedFile == null) return null;
+    onPicked?.call();
 
     final original = await _normalize(await pickedFile.readAsBytes());
     final originalPath = await projectRepository.saveLayerImage(

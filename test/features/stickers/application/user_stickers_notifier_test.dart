@@ -58,9 +58,12 @@ void main() {
   test('imports a picked image as a transparent, size-limited sticker', () async {
     await stickers();
     nextPick = transparentPng(2000, 1000);
+    var picked = 0;
 
-    final image = await notifier().pickImage();
+    final image = await notifier().pickImage(onPicked: () => picked++);
     final sticker = await notifier().add(image!);
+
+    expect(picked, 1, reason: 'the loading indicator is shown once a file is chosen');
 
     expect(sticker.relativePath, startsWith('stickers/'));
     expect(sticker.relativePath, endsWith('.png'), reason: 'transparency is kept');
@@ -85,7 +88,9 @@ void main() {
 
   test('cancelling the picker imports nothing', () async {
     await stickers();
-    expect(await notifier().pickImage(), isNull);
+    var picked = 0;
+    expect(await notifier().pickImage(onPicked: () => picked++), isNull);
+    expect(picked, 0, reason: 'no loading indicator when nothing was picked');
     expect(await stickers(), isEmpty);
   });
 

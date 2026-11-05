@@ -63,9 +63,12 @@ class ProjectsNotifier extends _$ProjectsNotifier {
   /// Lets the user pick and crop a photo for a new project. Returns null if
   /// cancelled. Finish with [createFromImportedPhoto], optionally after
   /// removing the photo's background.
-  Future<PendingPhotoProject?> importPhotoForNewProject(ImageSource source) async {
+  Future<PendingPhotoProject?> importPhotoForNewProject(
+    ImageSource source, {
+    void Function()? onPicked,
+  }) async {
     final id = const Uuid().v4();
-    final photo = await _imageImport.importPhoto(source: source, projectId: id);
+    final photo = await _imageImport.importPhoto(source: source, projectId: id, onPicked: onPicked);
     return photo == null ? null : PendingPhotoProject(projectId: id, photo: photo);
   }
 

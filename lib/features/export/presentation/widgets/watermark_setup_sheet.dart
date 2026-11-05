@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_editor/core/widgets/busy_overlay.dart';
 import 'package:image_editor/features/export/application/watermark_settings_notifier.dart';
 import 'package:image_editor/features/export/data/watermark_settings_repository.dart';
 import 'package:image_editor/features/export/domain/models/watermark_config.dart';
@@ -42,7 +43,11 @@ class _WatermarkSetupSheetState extends ConsumerState<WatermarkSetupSheet> {
   Future<void> _pickLogo() async {
     final settings = ref.read(watermarkSettingsProvider.notifier);
     try {
-      final image = await settings.pickLogoImage();
+      final image = await BusyOverlay.during(
+        context,
+        message: 'Importing logo…',
+        task: (showBusy) => settings.pickLogoImage(onPicked: showBusy),
+      );
       if (image == null || !mounted) return;
       final cutout = await BackgroundRemovalPrompt.show(context, imageBytes: image.bytes);
       final path = await settings.storeLogo(image, cutoutPng: cutout);

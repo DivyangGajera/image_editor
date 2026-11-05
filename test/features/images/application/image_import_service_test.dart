@@ -67,10 +67,13 @@ void main() {
       when(() => mockPicker.pickImage(source: ImageSource.gallery))
           .thenAnswer((_) async => null);
 
+      var picked = 0;
       final result = await service.importPhoto(
         source: ImageSource.gallery,
         projectId: 'test-proj',
+        onPicked: () => picked++,
       );
+      expect(picked, 0, reason: 'no loading indicator when nothing was picked');
 
       expect(result, isNull);
       verify(() => mockPicker.pickImage(source: ImageSource.gallery)).called(1);
@@ -129,10 +132,13 @@ void main() {
         ..clear(img.ColorRgb8(200, 120, 40));
       await stubPickAndCrop(Uint8List.fromList(img.encodeJpg(photo)));
 
+      var picked = 0;
       final imported = await service.importPhoto(
         source: ImageSource.gallery,
         projectId: 'test-proj',
+        onPicked: () => picked++,
       );
+      expect(picked, 1, reason: 'the loading indicator starts once a photo is chosen');
 
       expect(imported!.relativePath, endsWith('.jpg'));
       final saved = await projectRepository.resolveRelativePath(imported.relativePath);
