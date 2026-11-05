@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_editor/core/theme/app_theme.dart';
+import 'package:image_editor/core/utils/app_logger.dart';
 import 'package:image_editor/features/canvas/application/canvas_notifier.dart';
 import 'package:image_editor/features/canvas/presentation/canvas_view.dart';
 import 'package:image_editor/features/editor/application/application.dart';
@@ -15,6 +16,7 @@ import 'package:image_editor/features/layers/presentation/widgets/text_edit_shee
 import 'package:image_editor/features/projects/presentation/widgets/project_actions_sheet.dart';
 import 'package:image_editor/features/segmentation/application/background_removal_service.dart';
 import 'package:image_editor/features/segmentation/application/segmentation_notifier.dart';
+import 'package:image_editor/features/segmentation/presentation/background_removal_prompt.dart';
 import 'package:image_editor/features/segmentation/presentation/widgets/segmentation_progress_bar.dart';
 import 'package:image_editor/features/stickers/presentation/widgets/sticker_picker_sheet.dart';
 import 'package:image_picker/image_picker.dart';
@@ -102,7 +104,9 @@ class _EditorWorkspace extends ConsumerWidget {
   ) async {
     try {
       await action();
-    } catch (_) {
+    } catch (error, stackTrace) {
+      // Logged so device logs show the real cause behind the friendly message.
+      AppLogger.error(failureMessage, tag: 'Editor', error: error, stackTrace: stackTrace);
       if (context.mounted) _showError(context, failureMessage);
     }
   }
@@ -133,7 +137,14 @@ class _EditorWorkspace extends ConsumerWidget {
     if (source == null || !context.mounted) return;
 
     await _guard(context, 'Could not add the photo.', () async {
-      await ref.read(editorCommandsProvider(projectId)).addPhoto(source);
+      final commands = ref.read(editorCommandsProvider(projectId));
+      final photo = await commands.importPhoto(source);
+      if (photo == null || !context.mounted) return;
+
+      final bytes = await commands.readImportedPhoto(photo);
+      if (!context.mounted) return;
+      final cutout = await BackgroundRemovalPrompt.show(context, imageBytes: bytes);
+      await commands.addImportedPhoto(photo, cutoutPng: cutout);
     });
   }
 

@@ -108,12 +108,18 @@ void main() {
     expect(selection.item.assetPath, 'assets/stickers/discounts/discount_bogo.png');
   });
 
-  testWidgets('imported stickers appear in My stickers and can be picked', (tester) async {
+  testWidgets('importing asks about the background, then the sticker can be picked', (tester) async {
     await tester.runAsync(setUpStorage);
     await openSheet(tester);
 
     nextPick = Uint8List.fromList(img.encodePng(img.Image(width: 30, height: 20, numChannels: 4)));
     await tapReal(tester, find.byKey(const ValueKey('import_sticker_tile')));
+    // The Remove background? step follows; keep the original.
+    await pumpUntil(
+      tester,
+      () => find.byKey(const ValueKey('prompt_keep_original')).evaluate().isNotEmpty,
+    );
+    await tapReal(tester, find.byKey(const ValueKey('prompt_keep_original')));
     await pumpUntil(
       tester,
       () => container.read(userStickersProvider).value?.isNotEmpty ?? false,

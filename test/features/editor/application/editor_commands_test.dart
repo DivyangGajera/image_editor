@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -94,40 +95,45 @@ void main() {
   List<CanvasLayer> layers() =>
       container.read(canvasProvider(projectId)).requireValue.project.layers;
 
-  test('addPhoto passes the canvas size and adds the imported layer', () async {
-    const imported = ImageLayer(
-      id: 'photo',
-      x: 0.5,
-      y: 0.5,
-      scale: 0.3,
-      relativeImagePath: 'projects/editor-commands/images/a.jpg',
-    );
-    when(() => imageImport.pickAndCropImage(
+  const imported = ImportedPhoto(
+    relativePath: 'projects/editor-commands/images/img_a.jpg',
+    originalPath: 'projects/editor-commands/images/orig_a.jpg',
+    width: 2000,
+    height: 1000,
+  );
+
+  test('importPhoto imports into this project', () async {
+    when(() => imageImport.importPhoto(
           source: any(named: 'source'),
           projectId: any(named: 'projectId'),
-          canvasSize: any(named: 'canvasSize'),
         )).thenAnswer((_) async => imported);
 
-    final added = await commands.addPhoto(ImageSource.camera);
-
-    expect(added, isTrue);
-    expect(layers().single.id, 'photo');
-    verify(() => imageImport.pickAndCropImage(
-          source: ImageSource.camera,
-          projectId: projectId,
-          canvasSize: const Size(1000, 1250),
-        )).called(1);
+    expect(await commands.importPhoto(ImageSource.camera), imported);
+    verify(() => imageImport.importPhoto(source: ImageSource.camera, projectId: projectId))
+        .called(1);
   });
 
-  test('addPhoto returns false and changes nothing when the user cancels', () async {
-    when(() => imageImport.pickAndCropImage(
-          source: any(named: 'source'),
-          projectId: any(named: 'projectId'),
-          canvasSize: any(named: 'canvasSize'),
-        )).thenAnswer((_) async => null);
+  test('addImportedPhoto fits the photo to the canvas and keeps its original', () async {
+    await commands.addImportedPhoto(imported);
 
-    expect(await commands.addPhoto(ImageSource.gallery), isFalse);
-    expect(layers(), isEmpty);
+    final layer = layers().single as ImageLayer;
+    expect(layer.relativeImagePath, imported.relativePath);
+    expect(layer.originalImagePath, imported.originalPath);
+    // Width-limited: 1000 * 0.7 / 2000.
+    expect(layer.scale, closeTo(0.35, 1e-9));
+  });
+
+  test('addImportedPhoto with a cut-out saves and uses it instead', () async {
+    await commands.addImportedPhoto(imported, cutoutPng: Uint8List.fromList([1, 2, 3]));
+
+    final layer = layers().single as ImageLayer;
+    expect(layer.relativeImagePath, startsWith('projects/editor-commands/images/cutout_'));
+    expect(layer.relativeImagePath, endsWith('.png'));
+    expect(layer.originalImagePath, isNull, reason: 'the cut-out crops on its own');
+    expect(
+      await (await repository.resolveRelativePath(layer.relativeImagePath)).readAsBytes(),
+      [1, 2, 3],
+    );
   });
 
   test('addText scales text relative to a phone-width canvas', () async {
@@ -235,26 +241,23 @@ void main() {
     providerContainer.listen(canvasProvider(projectId), (_, _) {});
     await providerContainer.read(canvasProvider(projectId).future);
 
-    when(() => imageImport.pickAndCropImage(
+    when(() => imageImport.importPhoto(
           source: any(named: 'source'),
           projectId: any(named: 'projectId'),
-          canvasSize: any(named: 'canvasSize'),
         )).thenAnswer((_) async {
       // The user spends time in the picker and cropper.
       await Future<void>.delayed(const Duration(milliseconds: 50));
-      return const ImageLayer(
-        id: 'late-photo',
-        x: 0.5,
-        y: 0.5,
-        relativeImagePath: 'projects/editor-commands/images/a.jpg',
-      );
+      return imported;
     });
 
     final commands = providerContainer.read(editorCommandsProvider(projectId));
-    expect(await commands.addPhoto(ImageSource.gallery), isTrue);
+    final photo = await commands.importPhoto(ImageSource.gallery);
+    // ...and then in the background-removal prompt.
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    await commands.addImportedPhoto(photo!);
     expect(
-      providerContainer.read(canvasProvider(projectId)).requireValue.project.layers.single.id,
-      'late-photo',
+      providerContainer.read(canvasProvider(projectId)).requireValue.project.layers.single,
+      isA<ImageLayer>(),
     );
   });
 

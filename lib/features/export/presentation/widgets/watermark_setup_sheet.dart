@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_editor/features/export/application/watermark_settings_notifier.dart';
 import 'package:image_editor/features/export/data/watermark_settings_repository.dart';
 import 'package:image_editor/features/export/domain/models/watermark_config.dart';
+import 'package:image_editor/features/segmentation/presentation/background_removal_prompt.dart';
 
 /// Sets up the brand watermark once; it is then offered on every export.
 class WatermarkSetupSheet extends ConsumerStatefulWidget {
@@ -39,9 +40,13 @@ class _WatermarkSetupSheetState extends ConsumerState<WatermarkSetupSheet> {
   }
 
   Future<void> _pickLogo() async {
+    final settings = ref.read(watermarkSettingsProvider.notifier);
     try {
-      final path = await ref.read(watermarkSettingsProvider.notifier).importLogo();
-      if (path != null && mounted) {
+      final image = await settings.pickLogoImage();
+      if (image == null || !mounted) return;
+      final cutout = await BackgroundRemovalPrompt.show(context, imageBytes: image.bytes);
+      final path = await settings.storeLogo(image, cutoutPng: cutout);
+      if (mounted) {
         setState(() {
           _config = _config.copyWith(type: WatermarkType.logo, logoRelativePath: path);
           _error = null;

@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:image_editor/core/utils/app_logger.dart';
@@ -13,6 +14,13 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
 
 part 'projects_notifier.g.dart';
+
+/// A new project's photo, imported but not yet turned into a project.
+class PendingPhotoProject {
+  const PendingPhotoProject({required this.projectId, required this.photo});
+  final String projectId;
+  final ImportedPhoto photo;
+}
 
 /// All saved projects, most recently edited first, plus project management.
 @Riverpod(keepAlive: true)
@@ -52,19 +60,44 @@ class ProjectsNotifier extends _$ProjectsNotifier {
     return project;
   }
 
-  /// Lets the user pick a photo and creates a project whose canvas matches
-  /// the photo's aspect ratio, with the photo filling the canvas.
-  ///
-  /// Returns `null` (and leaves nothing behind) if the user cancels.
-  Future<ProjectModel?> createFromPhoto(ImageSource source) async {
+  /// Lets the user pick and crop a photo for a new project. Returns null if
+  /// cancelled. Finish with [createFromImportedPhoto], optionally after
+  /// removing the photo's background.
+  Future<PendingPhotoProject?> importPhotoForNewProject(ImageSource source) async {
     final id = const Uuid().v4();
     final photo = await _imageImport.importPhoto(source: source, projectId: id);
-    if (photo == null) return null;
+    return photo == null ? null : PendingPhotoProject(projectId: id, photo: photo);
+  }
+
+  /// Bytes of the photo of a pending project, e.g. for the removal prompt.
+  Future<Uint8List> readPendingPhoto(PendingPhotoProject pending) async =>
+      (await _repository.resolveRelativePath(pending.photo.relativePath)).readAsBytes();
+
+  /// Creates the project for [pending]: a canvas with the photo's aspect
+  /// ratio, the photo (or [cutoutPng], its cut-out) filling it.
+  Future<ProjectModel> createFromImportedPhoto(
+    PendingPhotoProject pending, {
+    Uint8List? cutoutPng,
+  }) async {
+    final photo = pending.photo;
+    final String imagePath;
+    final String? originalPath;
+    if (cutoutPng != null) {
+      imagePath = await _repository.saveLayerImage(
+        pending.projectId,
+        cutoutPng,
+        'cutout_${const Uuid().v4()}.png',
+      );
+      originalPath = null;
+    } else {
+      imagePath = photo.relativePath;
+      originalPath = photo.originalPath;
+    }
 
     final canvasSize = CanvasFormat.sizeForPhoto(photo.size);
     final now = DateTime.now();
     final project = ProjectModel(
-      id: id,
+      id: pending.projectId,
       title: defaultTitle,
       canvasWidth: canvasSize.width,
       canvasHeight: canvasSize.height,
@@ -76,8 +109,8 @@ class ProjectsNotifier extends _$ProjectsNotifier {
           x: 0.5,
           y: 0.5,
           scale: canvasSize.width / photo.width,
-          relativeImagePath: photo.relativePath,
-          originalImagePath: photo.originalPath,
+          relativeImagePath: imagePath,
+          originalImagePath: originalPath,
         ),
       ],
     );
