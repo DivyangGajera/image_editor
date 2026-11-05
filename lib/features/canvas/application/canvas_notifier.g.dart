@@ -65,7 +65,7 @@ final class CanvasNotifierProvider
   }
 }
 
-String _$canvasNotifierHash() => r'512e7df6fe9aa97edeb1ed60ddbd2490e5734532';
+String _$canvasNotifierHash() => r'5bb2901508879e2c6c124b2d717a9881afececf8';
 
 /// Riverpod notifier coordinating canvas workspace layer interactions, mutations,
 /// and automated history snapshot recording for a single project.

@@ -8,6 +8,7 @@ import 'package:image_editor/core/theme/app_theme.dart';
 import 'package:image_editor/core/utils/app_logger.dart';
 import 'package:image_editor/features/fonts/application/font_library_notifier.dart';
 import 'package:image_editor/features/segmentation/application/subject_model_installer.dart';
+import 'package:image_editor/features/onboarding/onboarding.dart';
 import 'package:image_editor/features/projects/presentation/home_screen.dart';
 
 Future<void> main() async {
@@ -38,17 +39,28 @@ Future<void> main() async {
     ),
   );
 
+  // Decided before the first frame, so Home never flashes before the welcome.
+  var showWelcome = false;
+  try {
+    showWelcome = !await container.read(onboardingRepositoryProvider).hasSeenWelcome();
+  } catch (error, stackTrace) {
+    AppLogger.error('Welcome state could not be read', tag: 'App', error: error, stackTrace: stackTrace);
+  }
+
   runApp(
     UncontrolledProviderScope(
       container: container,
-      child: const OfflineImageEditorApp(),
+      child: OfflineImageEditorApp(showWelcome: showWelcome),
     ),
   );
 }
 
 /// Root application widget for Chitred.
 class OfflineImageEditorApp extends StatelessWidget {
-  const OfflineImageEditorApp({super.key});
+  const OfflineImageEditorApp({super.key, this.showWelcome = false});
+
+  /// Starts on the first-run welcome instead of Home.
+  final bool showWelcome;
 
   @override
   Widget build(BuildContext context) {
@@ -56,7 +68,15 @@ class OfflineImageEditorApp extends StatelessWidget {
       title: AppConstants.appTitle,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
-      home: const HomeScreen(),
+      home: showWelcome
+          ? Builder(
+              builder: (context) => WelcomeScreen(
+                onDone: () => Navigator.of(context).pushReplacement(
+                  MaterialPageRoute<void>(builder: (_) => const HomeScreen()),
+                ),
+              ),
+            )
+          : const HomeScreen(),
     );
   }
 }
