@@ -125,10 +125,10 @@ class ImageImportService {
       uiSettings: [
         AndroidUiSettings(
           toolbarTitle: 'Crop',
-          toolbarColor: const Color(0xFFFFFFFF),
-          toolbarWidgetColor: const Color(0xFF1B1B21),
+          toolbarColor: AppTheme.paper,
+          toolbarWidgetColor: AppTheme.ink,
           statusBarLight: true,
-          backgroundColor: const Color(0xFF1B1B21),
+          backgroundColor: AppTheme.ink,
           activeControlsWidgetColor: AppTheme.brandSeed,
           initAspectRatio: CropAspectRatioPreset.original,
           lockAspectRatio: false,
