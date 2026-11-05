@@ -61,22 +61,24 @@ class UserStickersNotifier extends _$UserStickersNotifier {
     return _repository.getAll();
   }
 
-  /// Lets the user pick an image and adds it to the library. Returns null if
-  /// cancelled; throws [StickerImportException] for unreadable images.
-  Future<UserSticker?> importFromDevice() async {
+  /// Lets the user pick an image for a new sticker and prepares it (upright,
+  /// at most [maxStickerDimension] px). Returns null if cancelled; throws
+  /// [StickerImportException] for unreadable images. Save it with [add].
+  Future<NormalizedImage?> pickImage() async {
     final bytes = await _pickFile();
     if (bytes == null) return null;
-
-    final NormalizedImage image;
     try {
-      image = await _normalize(bytes);
+      return await _normalize(bytes);
     } on FormatException {
       throw const StickerImportException('This file is not a supported image.');
     }
+  }
 
+  /// Adds [image], or its background-free [cutoutPng], to the library.
+  Future<UserSticker> add(NormalizedImage image, {Uint8List? cutoutPng}) async {
     final sticker = await _repository.save(
-      bytes: image.bytes,
-      extension: image.extension,
+      bytes: cutoutPng ?? image.bytes,
+      extension: cutoutPng != null ? 'png' : image.extension,
       width: image.width,
       height: image.height,
     );

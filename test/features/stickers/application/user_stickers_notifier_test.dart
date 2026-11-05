@@ -59,10 +59,10 @@ void main() {
     await stickers();
     nextPick = transparentPng(2000, 1000);
 
-    final sticker = await notifier().importFromDevice();
+    final image = await notifier().pickImage();
+    final sticker = await notifier().add(image!);
 
-    expect(sticker, isNotNull);
-    expect(sticker!.relativePath, startsWith('stickers/'));
+    expect(sticker.relativePath, startsWith('stickers/'));
     expect(sticker.relativePath, endsWith('.png'), reason: 'transparency is kept');
     expect(sticker.width, maxStickerDimension);
     expect(sticker.height, 512);
@@ -70,9 +70,22 @@ void main() {
     expect((await stickers()).single, sticker);
   });
 
+  test('a background-free cut-out is stored as PNG with the original size', () async {
+    await stickers();
+    nextPick = Uint8List.fromList(img.encodeJpg(img.Image(width: 60, height: 40)));
+
+    final image = await notifier().pickImage();
+    final sticker = await notifier().add(image!, cutoutPng: transparentPng(60, 40));
+
+    expect(image.extension, 'jpg');
+    expect(sticker.relativePath, endsWith('.png'));
+    expect(sticker.width, 60);
+    expect(sticker.height, 40);
+  });
+
   test('cancelling the picker imports nothing', () async {
     await stickers();
-    expect(await notifier().importFromDevice(), isNull);
+    expect(await notifier().pickImage(), isNull);
     expect(await stickers(), isEmpty);
   });
 
@@ -80,19 +93,19 @@ void main() {
     await stickers();
     nextPick = Uint8List.fromList(List<int>.filled(32, 7));
 
-    await expectLater(notifier().importFromDevice(), throwsA(isA<StickerImportException>()));
+    await expectLater(notifier().pickImage(), throwsA(isA<StickerImportException>()));
     expect(await stickers(), isEmpty);
   });
 
   test('stickers persist across restarts, newest first, and can be deleted', () async {
     await stickers();
     nextPick = transparentPng(20, 20);
-    final first = await notifier().importFromDevice();
-    final second = await notifier().importFromDevice();
+    final first = await notifier().add((await notifier().pickImage())!);
+    final second = await notifier().add((await notifier().pickImage())!);
 
     container.dispose();
     container = makeContainer();
-    expect((await stickers()).map((s) => s.id), [second!.id, first!.id]);
+    expect((await stickers()).map((s) => s.id), [second.id, first.id]);
 
     await notifier().delete(first);
     expect((await stickers()).single.id, second.id);
