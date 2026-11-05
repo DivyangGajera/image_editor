@@ -50,6 +50,10 @@ void main() {
 
   Future<void> pumpHome(WidgetTester tester) async {
     openedProjects = <String>[];
+    // A typical phone screen (393 x 851 logical px).
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 2.75;
+    addTearDown(tester.view.reset);
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
@@ -77,22 +81,30 @@ void main() {
   Future<List<ProjectModel>> savedProjects() => repository.getAllProjects();
 
 
-  testWidgets('fresh install shows the empty state and no floating button', (tester) async {
+  testWidgets('fresh install shows every way to create and an empty designs hint', (tester) async {
     await tester.runAsync(() => setUpStorage(const []));
     await pumpHome(tester);
 
-    expect(find.text('No projects yet'), findsOneWidget);
-    expect(find.byKey(const ValueKey('create_first_project')), findsOneWidget);
-    expect(find.byKey(const ValueKey('new_project_fab')), findsNothing);
+    expect(find.text('What are you making today?'), findsOneWidget);
+    for (final key in [
+      'format_square',
+      'format_portrait',
+      'format_story',
+      'format_landscape',
+      'start_from_gallery',
+      'start_from_camera',
+      'start_collage',
+      'start_custom_size',
+    ]) {
+      expect(find.byKey(ValueKey(key)), findsOneWidget, reason: key);
+    }
+    expect(find.text('No designs yet'), findsOneWidget);
   });
 
-  testWidgets('creating a Feed project from the empty state opens it in the editor',
-      (tester) async {
+  testWidgets('one tap on Feed creates a 4:5 project and opens it in the editor', (tester) async {
     await tester.runAsync(() => setUpStorage(const []));
     await pumpHome(tester);
 
-    await tapAndSettle(tester, find.byKey(const ValueKey('create_first_project')));
-    expect(find.text('New project'), findsOneWidget);
     await tapAndSettle(tester, find.byKey(const ValueKey('format_portrait')));
     await pumpUntil(tester, () => openedProjects.isNotEmpty);
 
@@ -101,7 +113,6 @@ void main() {
     expect(saved!.single.canvasWidth, 1080);
     expect(saved.single.canvasHeight, 1350);
     expect(openedProjects, [saved.single.id]);
-    expect(find.byKey(const ValueKey('new_project_fab')), findsOneWidget);
   });
 
   testWidgets('lists projects newest first and opens one on tap', (tester) async {
@@ -148,17 +159,16 @@ void main() {
     await tapAndSettle(tester, find.byKey(const ValueKey('project_action_delete')));
     expect(find.text('Delete project?'), findsOneWidget);
     await tapAndSettle(tester, find.byKey(const ValueKey('confirm_delete')));
-    await pumpUntil(tester, () => find.text('No projects yet').evaluate().isNotEmpty);
+    await pumpUntil(tester, () => find.text('No designs yet').evaluate().isNotEmpty);
 
     expect(await tester.runAsync(savedProjects), isEmpty);
-    expect(find.text('No projects yet'), findsOneWidget);
+    expect(find.text('No designs yet'), findsOneWidget);
   });
 
   testWidgets('custom size only accepts sides within the allowed range', (tester) async {
     await tester.runAsync(() => setUpStorage(const []));
     await pumpHome(tester);
 
-    await tapAndSettle(tester, find.byKey(const ValueKey('create_first_project')));
     await tapAndSettle(tester, find.byKey(const ValueKey('start_custom_size')));
 
     await tester.enterText(find.byKey(const ValueKey('custom_width')), '50');

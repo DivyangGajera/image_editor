@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_editor/core/widgets/busy_overlay.dart';
 import 'package:image_editor/core/constants/app_constants.dart';
+import 'package:image_editor/core/widgets/busy_overlay.dart';
 import 'package:image_editor/core/utils/app_logger.dart';
 import 'package:image_editor/features/canvas/domain/models/project_model.dart';
 import 'package:image_editor/features/collage/presentation/screens/collage_setup_screen.dart';
 import 'package:image_editor/features/editor/presentation/editor_screen.dart';
 import 'package:image_editor/features/projects/application/projects_notifier.dart';
 import 'package:image_editor/features/projects/presentation/widgets/empty_projects_view.dart';
-import 'package:image_editor/features/projects/presentation/widgets/new_project_sheet.dart';
+import 'package:image_editor/features/projects/presentation/widgets/create_options.dart';
 import 'package:image_editor/features/projects/presentation/widgets/project_actions_sheet.dart';
 import 'package:image_editor/features/projects/presentation/widgets/project_card.dart';
 import 'package:image_editor/features/segmentation/presentation/background_removal_prompt.dart';
@@ -39,10 +39,7 @@ class HomeScreen extends ConsumerWidget {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  Future<void> _createProject(BuildContext context, WidgetRef ref) async {
-    final choice = await NewProjectSheet.show(context);
-    if (choice == null || !context.mounted) return;
-
+  Future<void> _createProject(BuildContext context, WidgetRef ref, NewProjectChoice choice) async {
     final notifier = ref.read(projectsProvider.notifier);
     try {
       final ProjectModel? project;
@@ -96,88 +93,94 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
     final projects = ref.watch(projectsProvider);
-    final hasProjects = projects.value?.isNotEmpty ?? false;
+    final now = DateTime.now();
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          AppConstants.appShortName,
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: Theme.of(context).colorScheme.primary,
+      body: SafeArea(
+        bottom: false,
+        child: CustomScrollView(
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20.0, 20.0, 20.0, 0.0),
+              sliver: SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      AppConstants.appShortName,
+                      style: theme.textTheme.headlineMedium?.copyWith(color: colors.primary),
+                    ),
+                    const SizedBox(height: 2.0),
+                    Text(
+                      'What are you making today?',
+                      style: theme.textTheme.bodyLarge?.copyWith(color: colors.onSurfaceVariant),
+                    ),
+                    const SizedBox(height: 24.0),
+                    Text('Create', style: theme.textTheme.titleMedium),
+                    const SizedBox(height: 12.0),
+                    CreateGrid(onChoice: (choice) => _createProject(context, ref, choice)),
+                    const SizedBox(height: 28.0),
+                    Text('Recent designs', style: theme.textTheme.titleMedium),
+                    const SizedBox(height: 12.0),
+                  ],
+                ),
               ),
+            ),
+            switch (projects) {
+              AsyncData(:final value) when value.isEmpty => const SliverPadding(
+                  padding: EdgeInsets.fromLTRB(20.0, 0.0, 20.0, 24.0),
+                  sliver: SliverToBoxAdapter(child: EmptyProjectsView()),
+                ),
+              AsyncData(:final value) => SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20.0, 0.0, 20.0, 32.0),
+                  sliver: SliverGrid.builder(
+                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: 240.0,
+                      mainAxisSpacing: 12.0,
+                      crossAxisSpacing: 12.0,
+                      childAspectRatio: 0.78,
+                    ),
+                    itemCount: value.length,
+                    itemBuilder: (context, index) {
+                      final project = value[index];
+                      return ProjectCard(
+                        key: ValueKey('project_card_${project.id}'),
+                        project: project,
+                        now: now,
+                        onOpen: () => _open(context, ref, project.id),
+                        onShowActions: () => _showActions(context, ref, project),
+                      );
+                    },
+                  ),
+                ),
+              AsyncError() => SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      children: [
+                        const Text('Your projects could not be loaded.'),
+                        const SizedBox(height: 12.0),
+                        OutlinedButton(
+                          onPressed: () => ref.invalidate(projectsProvider),
+                          child: const Text('Try again'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              _ => const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.all(32.0),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                ),
+            },
+          ],
         ),
       ),
-      floatingActionButton: hasProjects
-          ? FloatingActionButton.extended(
-              key: const ValueKey('new_project_fab'),
-              onPressed: () => _createProject(context, ref),
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('New project'),
-            )
-          : null,
-      body: switch (projects) {
-        AsyncData(:final value) when value.isEmpty =>
-          EmptyProjectsView(onCreate: () => _createProject(context, ref)),
-        AsyncData(:final value) => _ProjectGrid(
-            projects: value,
-            onOpen: (project) => _open(context, ref, project.id),
-            onShowActions: (project) => _showActions(context, ref, project),
-          ),
-        AsyncError() => Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('Your projects could not be loaded.'),
-                const SizedBox(height: 12.0),
-                OutlinedButton(
-                  onPressed: () => ref.invalidate(projectsProvider),
-                  child: const Text('Try again'),
-                ),
-              ],
-            ),
-          ),
-        _ => const Center(child: CircularProgressIndicator()),
-      },
-    );
-  }
-}
-
-class _ProjectGrid extends StatelessWidget {
-  const _ProjectGrid({
-    required this.projects,
-    required this.onOpen,
-    required this.onShowActions,
-  });
-
-  final List<ProjectModel> projects;
-  final ValueChanged<ProjectModel> onOpen;
-  final ValueChanged<ProjectModel> onShowActions;
-
-  @override
-  Widget build(BuildContext context) {
-    final now = DateTime.now();
-    return GridView.builder(
-      // Bottom padding keeps the last row clear of the floating button.
-      padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 96.0),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 240.0,
-        mainAxisSpacing: 12.0,
-        crossAxisSpacing: 12.0,
-        childAspectRatio: 0.78,
-      ),
-      itemCount: projects.length,
-      itemBuilder: (context, index) {
-        final project = projects[index];
-        return ProjectCard(
-          key: ValueKey('project_card_${project.id}'),
-          project: project,
-          now: now,
-          onOpen: () => onOpen(project),
-          onShowActions: () => onShowActions(project),
-        );
-      },
     );
   }
 }
