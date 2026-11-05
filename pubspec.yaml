@@ -45,8 +45,6 @@ dependencies:
   image: ^4.5.4
 
   # Machine Learning (On-device segmentation)
-  google_mlkit_selfie_segmentation: ^0.8.0
-
   # Image Acquisition & Cropping (Zero permission photo picker + edge-to-edge cropper)
   image_picker: ^1.2.3
   image_cropper: ^9.0.0
@@ -61,6 +59,7 @@ dependencies:
 
   # Utilities
   uuid: ^4.5.1
+  google_mlkit_subject_segmentation: ^0.2.1
 
 dev_dependencies:
   flutter_test:
