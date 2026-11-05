@@ -90,6 +90,28 @@ flutter:
     - assets/stickers/discounts/
     - assets/stickers/urgency/
     - assets/stickers/badges/
+    - assets/ui_fonts/Poppins-OFL.txt
+    - assets/ui_fonts/Inter-OFL.txt
+
+  # App UI fonts (OFL), under their own family names so they never clash
+  # with fonts users download for text layers (the catalog includes Poppins).
+  fonts:
+    - family: ChitredDisplay
+      fonts:
+        - asset: assets/ui_fonts/Poppins-500.ttf
+          weight: 500
+        - asset: assets/ui_fonts/Poppins-600.ttf
+          weight: 600
+        - asset: assets/ui_fonts/Poppins-700.ttf
+          weight: 700
+    - family: ChitredText
+      fonts:
+        - asset: assets/ui_fonts/Inter-400.ttf
+          weight: 400
+        - asset: assets/ui_fonts/Inter-500.ttf
+          weight: 500
+        - asset: assets/ui_fonts/Inter-600.ttf
+          weight: 600
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

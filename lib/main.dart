@@ -12,6 +12,7 @@ import 'package:image_editor/features/projects/presentation/home_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  AppTheme.registerFontLicenses();
   await AppBootstrap.initialize();
 
   final container = ProviderContainer();
