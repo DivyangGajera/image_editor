@@ -164,14 +164,21 @@ class EditorCommands {
 }
 
 /// [EditorCommands] bound to the canvas of [projectId].
+///
+/// Widgets read this provider without listening, so it is disposed right
+/// after the read while a command may still be waiting for the photo picker,
+/// cropper or an asset. The commands therefore hold the notifier *instances*
+/// (resolved here, up front) and never use this provider's `ref` later.
 @riverpod
 EditorCommands editorCommands(Ref ref, String projectId) {
+  final canvas = ref.read(canvasProvider(projectId).notifier);
+  final segmentation = ref.read(segmentationProvider.notifier);
   return EditorCommands(
     projectId: projectId,
-    canvas: () => ref.read(canvasProvider(projectId).notifier),
-    canvasState: () => ref.read(canvasProvider(projectId)).requireValue,
+    canvas: () => canvas,
+    canvasState: () => canvas.currentState,
     imageImport: ref.watch(imageImportServiceProvider),
-    segmentation: () => ref.read(segmentationProvider.notifier),
+    segmentation: () => segmentation,
     projectRepository: ref.watch(projectRepositoryProvider),
     userStickers: ref.watch(userStickerRepositoryProvider),
   );
