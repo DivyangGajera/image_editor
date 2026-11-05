@@ -3,6 +3,7 @@ import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
+import 'package:image_editor/features/images/application/platform_image_converter.dart';
 import 'package:image_editor/core/constants/app_constants.dart';
 import 'package:image_editor/features/canvas/data/project_repository.dart';
 import 'package:image_editor/features/canvas/domain/models/project_model.dart';
@@ -291,7 +292,8 @@ class CollageEngine {
         throw ArgumentError('Source image file does not exist: ${cell.sourceImagePath}');
       }
 
-      final sourceBytes = await file.readAsBytes();
+      // HEIC camera photos are converted to JPEG first.
+      final sourceBytes = await PlatformImageConverter.ensureDecodable(await file.readAsBytes());
 
       // Process cell with borders in background isolate
       final processedBytes = await processCellInIsolate(

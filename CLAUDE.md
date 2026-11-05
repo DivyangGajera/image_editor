@@ -44,7 +44,7 @@ Each feature in `lib/features/<feature>/` has a barrel (`<feature>.dart`), and s
 - Gestures follow begin → preview → commit: `beginInteraction` snapshots the layers, `previewTransform` updates state only (no history, no disk), and `commitInteraction` records one undo step. `TransformableBox` converts screen deltas using the canvas view scale (`CanvasCoordinateConverter`).
 - `HistoryManager` is a persistent 500-step undo/redo engine. Each undo step is a `CanvasSnapshot` (Hive typeId 7: layers plus the background color), written through to a Hive `LazyBox<dynamic>` (`history_<projectId>`, with a `meta` key); only the newest 50 are cached in RAM. Legacy frames (plain layer lists) still load, as white. It survives restarts, and all operations run through a serial queue.
 - `ProjectModel.backgroundColorValue` (HiveField 7, default white) is the solid canvas background, set with the editor's Background tool (`CanvasNotifier.setBackgroundColor`, undoable).
-- Images are normalized on import (`ImageNormalizer`, in an isolate: EXIF baked, ≤2048 px, JPEG unless transparent). The uncropped original is kept (`originalImagePath`) so Crop/Uncrop can be redone.
+- Images are normalized on import (`ImageNormalizer`, in an isolate: EXIF baked, ≤2048 px, JPEG unless transparent). HEIC/HEIF/AVIF (and anything else the `image` package can't sniff) is first converted to JPEG by `PlatformImageConverter` through the engine codec, which falls back to Android's ImageDecoder (Android 9+); collage cells go through it too. The uncropped original is kept (`originalImagePath`) so Crop/Uncrop can be redone.
 - Doodle points are relative to the stroke's bounding box (`DoodleGeometry`).
 
 ## Persistence rules
