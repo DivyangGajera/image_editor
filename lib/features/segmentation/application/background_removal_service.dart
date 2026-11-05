@@ -171,17 +171,17 @@ class BackgroundRemovalService {
   }
 
   Future<Uint8List> _cutOut(Uint8List imageBytes) async {
-    final SubjectModelStatus status;
+    // The availability check is only a hint: on some devices the module
+    // install API fails even though ML Kit itself works, so a failed check
+    // never blocks the attempt. It is reported only if ML Kit fails too.
+    String? installerFailure;
     try {
-      status = await _modelInstaller.ensureModel();
+      final status = await _modelInstaller.ensureModel();
+      if (status == SubjectModelStatus.installing) throw BackgroundRemovalException.modelNotReady;
     } on SubjectModelException catch (error) {
-      throw BackgroundRemovalException(
-        'Google Play services could not provide the background remover. '
-        'Make sure Google Play services is up to date and try again.',
-        detail: error.detail,
-      );
+      installerFailure = error.detail;
+      AppLogger.warning('Model check failed, trying ML Kit anyway: ${error.detail}', tag: 'Segmentation');
     }
-    if (status == SubjectModelStatus.installing) throw BackgroundRemovalException.modelNotReady;
 
     final input = await Isolate.run(() => SegmentationInput.prepare(imageBytes));
     final temp = File(p.join((await _getTempDir()).path, 'segment_${const Uuid().v4()}.jpg'));
@@ -189,6 +189,15 @@ class BackgroundRemovalService {
     final List<double> mask;
     try {
       mask = await _masker.maskFor(temp.path);
+    } on BackgroundRemovalException {
+      rethrow;
+    } catch (error) {
+      if (installerFailure == null) rethrow;
+      throw BackgroundRemovalException(
+        'Google Play services could not provide the background remover. '
+        'Make sure Google Play services is up to date and try again.',
+        detail: '$installerFailure | $error',
+      );
     } finally {
       if (await temp.exists()) await temp.delete();
     }

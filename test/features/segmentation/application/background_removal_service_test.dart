@@ -136,16 +136,32 @@ void main() {
     );
   });
 
-  test('Play services failures are explained with their details', () async {
+  test('a failed model check does not block background removal', () async {
     final service = serviceWith(
       LeftHalfMasker(),
+      installer: const FakeInstaller.failing('MODEL_CHECK_FAILED: API unavailable'),
+    );
+
+    final cut = img.decodePng(await service.cutOut(photo()))!;
+
+    expect(cut.getPixel(2, 5).a, greaterThan(200));
+    expect(cut.getPixel(17, 5).a, 0);
+  });
+
+  test('when the model check and ML Kit both fail, both details are reported', () async {
+    final service = serviceWith(
+      FixedMasker(Exception('segmenter unavailable')),
       installer: const FakeInstaller.failing('MODEL_INSTALL_FAILED: no Play services'),
     );
 
     await expectLater(
       service.cutOut(photo()),
       throwsA(isA<BackgroundRemovalException>()
-          .having((e) => e.detail, 'detail', 'MODEL_INSTALL_FAILED: no Play services')),
+          .having((e) => e.message, 'message', contains('Google Play services'))
+          .having((e) => e.detail, 'detail', allOf(
+                contains('MODEL_INSTALL_FAILED: no Play services'),
+                contains('segmenter unavailable'),
+              ))),
     );
   });
 
