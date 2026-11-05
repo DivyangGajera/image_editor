@@ -24,6 +24,7 @@ class DoodleLayerAdapter extends TypeAdapter<DoodleLayer> {
       rotation: fields[4] == null ? 0.0 : (fields[4] as num).toDouble(),
       zIndex: fields[5] == null ? 0 : (fields[5] as num).toInt(),
       isVisible: fields[6] == null ? true : fields[6] as bool,
+      isLocked: fields[30] == null ? false : fields[30] as bool,
       points: (fields[7] as List)
           .map((e) => (e as List).cast<double>())
           .toList(),
@@ -38,7 +39,7 @@ class DoodleLayerAdapter extends TypeAdapter<DoodleLayer> {
   @override
   void write(BinaryWriter writer, DoodleLayer obj) {
     writer
-      ..writeByte(11)
+      ..writeByte(12)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -60,7 +61,9 @@ class DoodleLayerAdapter extends TypeAdapter<DoodleLayer> {
       ..writeByte(9)
       ..write(obj.strokeWidth)
       ..writeByte(10)
-      ..write(obj.hasGlow);
+      ..write(obj.hasGlow)
+      ..writeByte(30)
+      ..write(obj.isLocked);
   }
 
   @override

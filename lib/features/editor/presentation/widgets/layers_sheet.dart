@@ -126,6 +126,13 @@ class LayersSheet extends ConsumerWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
+                            key: ValueKey('layer_lock_${layer.id}'),
+                            tooltip: layer.isLocked ? 'Unlock layer' : 'Lock layer',
+                            color: layer.isLocked ? colors.primary : null,
+                            icon: Icon(layer.isLocked ? Icons.lock_rounded : Icons.lock_open_rounded),
+                            onPressed: () => notifier.toggleLock(layer.id),
+                          ),
+                          IconButton(
                             key: ValueKey('layer_visibility_${layer.id}'),
                             tooltip: layer.isVisible ? 'Hide layer' : 'Show layer',
                             icon: Icon(

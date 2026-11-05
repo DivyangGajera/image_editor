@@ -134,7 +134,8 @@ class CanvasNotifier extends _$CanvasNotifier {
     double? rotation,
   }) {
     final index = _current.project.layers.indexWhere((l) => l.id == id);
-    if (index == -1) return;
+    // Locked layers never move, whatever asks for it.
+    if (index == -1 || _current.project.layers[index].isLocked) return;
 
     final updatedLayers = List<CanvasLayer>.from(_current.project.layers);
     updatedLayers[index] = updatedLayers[index].copyWith(
@@ -308,6 +309,18 @@ class CanvasNotifier extends _$CanvasNotifier {
 
   /// Shows or hides layer [id]. Hidden layers are neither rendered nor exported
   /// and are deselected; they remain listed in the layers panel.
+  /// Locks or unlocks layer [id] against moving, resizing and rotating on
+  /// the canvas (undoable). It stays selected so it can be unlocked again.
+  Future<void> toggleLock(String id) async {
+    final before = _current.project.layers;
+    final index = before.indexWhere((l) => l.id == id);
+    if (index == -1) return;
+
+    final updated = List<CanvasLayer>.from(before)
+      ..[index] = before[index].copyWith(isLocked: !before[index].isLocked);
+    await _commit(before: _snapshot(before), after: _withLayers(updated));
+  }
+
   Future<void> toggleVisibility(String id) async {
     final before = _current.project.layers;
     final index = before.indexWhere((l) => l.id == id);

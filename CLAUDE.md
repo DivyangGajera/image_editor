@@ -37,7 +37,7 @@ Each feature in `lib/features/<feature>/` has a barrel (`<feature>.dart`), and s
 
 ## Core editing data flow
 - `ProjectModel` (Hive typeId 4) holds the canvas size and a `List<CanvasLayer>`. List index == `zIndex`, from bottom to top.
-- `CanvasLayer` subclasses: `ImageLayer`=0, `TextLayer`=1, `DoodleLayer`=2, `StickerLayer`=3. Type IDs are registered in `HiveTypeIds` (`core/storage/storage_keys.dart`): also `FontEntry`=5 and `UserSticker`=6. Never reuse a type ID or a retired `@HiveField` index (`ImageLayer` field 10 is retired).
+- `CanvasLayer` subclasses: `ImageLayer`=0, `TextLayer`=1, `DoodleLayer`=2, `StickerLayer`=3. Type IDs are registered in `HiveTypeIds` (`core/storage/storage_keys.dart`): also `FontEntry`=5 and `UserSticker`=6. Never reuse a type ID or a retired `@HiveField` index (`ImageLayer` field 10 is retired). Shared `CanvasLayer` fields are 0–6 plus `isLocked` at 30 (subclass fields use 7–29); a locked layer can be selected but `TransformableBox` and `previewTransform` never move it.
 - Providers that widgets only `read` are disposed right after the read. Anything holding a provider's `ref` across an `await` must instead capture the notifier instances up front (see `editorCommandsProvider`). This caused the "could not add photo/sticker" bug.
 - Layer `x`/`y` are **normalized** (0–1, layer center). `copyWith` on the base class is polymorphic over the base fields.
 - `CanvasNotifier` (AsyncNotifier keyed by project ID) loads the project from `ProjectRepository`. Mutations go through `_commit`: state is updated synchronously, then the previous layers are pushed to history and the project is saved. Dependencies are captured before awaiting, so edits survive disposal.

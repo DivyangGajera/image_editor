@@ -166,6 +166,7 @@ class LayerContextBar extends StatelessWidget {
     required this.isBusy,
     required this.onDeselect,
     required this.onDuplicate,
+    required this.onToggleLock,
     required this.onBringToFront,
     required this.onSendToBack,
     required this.onDelete,
@@ -187,6 +188,7 @@ class LayerContextBar extends StatelessWidget {
 
   final VoidCallback onDeselect;
   final VoidCallback onDuplicate;
+  final VoidCallback onToggleLock;
   final VoidCallback onBringToFront;
   final VoidCallback onSendToBack;
   final VoidCallback onDelete;
@@ -261,6 +263,13 @@ class LayerContextBar extends StatelessWidget {
       ),
       children: [
         ...typeTools,
+        ToolButton(
+          key: const ValueKey('ctx_lock'),
+          icon: current.isLocked ? Icons.lock_rounded : Icons.lock_open_rounded,
+          label: current.isLocked ? 'Unlock' : 'Lock',
+          isActive: current.isLocked,
+          onPressed: onToggleLock,
+        ),
         ToolButton(
           key: const ValueKey('ctx_duplicate'),
           icon: Icons.copy_all_outlined,

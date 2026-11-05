@@ -172,6 +172,21 @@ void main() {
     expectQuickActionsInRow();
   });
 
+  testWidgets('Lock in the layer tools and in the Layers sheet', (tester) async {
+    await tester.runAsync(() => createProject(const [photo, caption]));
+    await pumpEditor(tester);
+    container.read(canvasProvider(projectId).notifier).selectLayer('caption');
+    await tester.pumpAndSettle();
+
+    await tapAndSettle(tester, find.byKey(const ValueKey('ctx_lock')));
+    await pumpUntil(tester, () => canvas().project.layers.last.isLocked);
+    expect(find.text('Unlock'), findsOneWidget);
+
+    await tapAndSettle(tester, find.byKey(const ValueKey('editor_layers')));
+    await tapAndSettle(tester, find.byKey(const ValueKey('layer_lock_caption')));
+    await pumpUntil(tester, () => !canvas().project.layers.last.isLocked);
+  });
+
   testWidgets('the Background tool sets the canvas color', (tester) async {
     await tester.runAsync(() => createProject(const []));
     await pumpEditor(tester);

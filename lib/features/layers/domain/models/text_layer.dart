@@ -15,6 +15,7 @@ class TextLayer extends CanvasLayer {
     super.rotation = 0.0,
     super.zIndex = 0,
     super.isVisible = true,
+    super.isLocked = false,
     required this.text,
     this.fontFamily = 'Roboto',
     this.isCustomFont = false,
@@ -81,6 +82,7 @@ class TextLayer extends CanvasLayer {
     double? rotation,
     int? zIndex,
     bool? isVisible,
+    bool? isLocked,
     String? text,
     String? fontFamily,
     bool? isCustomFont,
@@ -101,6 +103,7 @@ class TextLayer extends CanvasLayer {
       rotation: rotation ?? this.rotation,
       zIndex: zIndex ?? this.zIndex,
       isVisible: isVisible ?? this.isVisible,
+      isLocked: isLocked ?? this.isLocked,
       text: text ?? this.text,
       fontFamily: fontFamily ?? this.fontFamily,
       isCustomFont: isCustomFont ?? this.isCustomFont,
@@ -126,6 +129,7 @@ class TextLayer extends CanvasLayer {
         other.rotation == rotation &&
         other.zIndex == zIndex &&
         other.isVisible == isVisible &&
+        other.isLocked == isLocked &&
         other.text == text &&
         other.fontFamily == fontFamily &&
         other.isCustomFont == isCustomFont &&
@@ -148,6 +152,7 @@ class TextLayer extends CanvasLayer {
         rotation,
         zIndex,
         isVisible,
+        isLocked,
         text,
         fontFamily,
         isCustomFont,
@@ -167,5 +172,5 @@ class TextLayer extends CanvasLayer {
       'textColorValue: $textColorValue, isBold: $isBold, isItalic: $isItalic, '
       'boxColorValue: $boxColorValue, boxBorderRadius: $boxBorderRadius, '
       'shadowColorValue: $shadowColorValue, x: $x, y: $y, scale: $scale, '
-      'rotation: $rotation, zIndex: $zIndex, isVisible: $isVisible)';
+      'rotation: $rotation, zIndex: $zIndex, isVisible: $isVisible, isLocked: $isLocked)';
 }

@@ -309,6 +309,25 @@ void main() {
       expect(readState().project.layers.single.isVisible, isFalse);
     });
 
+    test('toggleLock locks a layer against moving, keeps it selected and can be undone', () async {
+      final notifier = container.read(canvasUnderTest.notifier);
+      await notifier.addLayer(makeText('l-0', 'Logo'));
+      final x = readState().project.layers.single.x;
+
+      await notifier.toggleLock('l-0');
+      expect(readState().project.layers.single.isLocked, isTrue);
+      expect(readState().selectedLayerId, 'l-0', reason: 'still selected so it can be unlocked');
+
+      notifier.beginInteraction('l-0');
+      notifier.previewTransform('l-0', x: x + 0.3, scale: 3.0);
+      await notifier.commitInteraction();
+      expect(readState().project.layers.single.x, x, reason: 'locked layers never move');
+      expect(readState().project.layers.single.scale, 1.0);
+
+      await notifier.undo();
+      expect(readState().project.layers.single.isLocked, isFalse);
+    });
+
     test('applyCutout hides the source and stacks the cutout on top with its transform',
         () async {
       final notifier = container.read(canvasUnderTest.notifier);

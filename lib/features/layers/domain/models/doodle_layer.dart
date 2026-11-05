@@ -16,6 +16,7 @@ class DoodleLayer extends CanvasLayer {
     super.rotation = 0.0,
     super.zIndex = 0,
     super.isVisible = true,
+    super.isLocked = false,
     required this.points,
     this.strokeColorValue = 0xFFFF0000,
     this.strokeWidth = 5.0,
@@ -47,6 +48,7 @@ class DoodleLayer extends CanvasLayer {
     double? rotation,
     int? zIndex,
     bool? isVisible,
+    bool? isLocked,
     List<List<double>>? points,
     int? strokeColorValue,
     double? strokeWidth,
@@ -60,6 +62,7 @@ class DoodleLayer extends CanvasLayer {
       rotation: rotation ?? this.rotation,
       zIndex: zIndex ?? this.zIndex,
       isVisible: isVisible ?? this.isVisible,
+      isLocked: isLocked ?? this.isLocked,
       points: points ??
           this.points.map((innerList) => List<double>.from(innerList)).toList(),
       strokeColorValue: strokeColorValue ?? this.strokeColorValue,
@@ -79,6 +82,7 @@ class DoodleLayer extends CanvasLayer {
         other.rotation == rotation &&
         other.zIndex == zIndex &&
         other.isVisible == isVisible &&
+        other.isLocked == isLocked &&
         other.strokeColorValue == strokeColorValue &&
         other.strokeWidth == strokeWidth &&
         other.hasGlow == hasGlow &&
@@ -103,6 +107,7 @@ class DoodleLayer extends CanvasLayer {
         rotation,
         zIndex,
         isVisible,
+        isLocked,
         strokeColorValue,
         strokeWidth,
         hasGlow,
@@ -113,5 +118,5 @@ class DoodleLayer extends CanvasLayer {
   String toString() =>
       'DoodleLayer(id: $id, pointsCount: ${points.length}, strokeColorValue: $strokeColorValue, '
       'strokeWidth: $strokeWidth, hasGlow: $hasGlow, x: $x, y: $y, scale: $scale, '
-      'rotation: $rotation, zIndex: $zIndex, isVisible: $isVisible)';
+      'rotation: $rotation, zIndex: $zIndex, isVisible: $isVisible, isLocked: $isLocked)';
 }

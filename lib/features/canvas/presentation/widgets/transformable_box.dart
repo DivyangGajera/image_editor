@@ -158,6 +158,7 @@ class _TransformableBoxState extends State<TransformableBox> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final layer = widget.layer;
+    final locked = layer.isLocked;
     final pad = _screenToLocal(TransformableBox.chromeHitSize / 2.0);
     final borderWidth = _screenToLocal(2.0);
 
@@ -178,21 +179,36 @@ class _TransformableBoxState extends State<TransformableBox> {
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap: widget.onSelect,
-                    onScaleStart: _onScaleStart,
-                    onScaleUpdate: _onScaleUpdate,
-                    onScaleEnd: (_) => widget.onInteractionEnd(),
+                    // A locked layer can be selected (to unlock it) but not moved.
+                    onScaleStart: locked ? null : _onScaleStart,
+                    onScaleUpdate: locked ? null : _onScaleUpdate,
+                    onScaleEnd: locked ? null : (_) => widget.onInteractionEnd(),
                     child: DecoratedBox(
                       position: DecorationPosition.foreground,
                       decoration: BoxDecoration(
                         border: widget.isSelected
-                            ? Border.all(color: colors.primary, width: borderWidth)
+                            ? Border.all(color: locked ? colors.outline : colors.primary, width: borderWidth)
                             : null,
                       ),
                       child: widget.child,
                     ),
                   ),
                 ),
-                if (widget.isSelected)
+                if (widget.isSelected && locked)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: _ScreenSized(
+                      factor: _screenToLocal(1.0),
+                      child: _ChromeButton(
+                        key: const ValueKey('locked_badge'),
+                        semanticsLabel: 'Layer is locked',
+                        icon: Icons.lock_rounded,
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                if (widget.isSelected && !locked)
                   Positioned(
                     right: 0,
                     bottom: 0,
@@ -212,7 +228,7 @@ class _TransformableBoxState extends State<TransformableBox> {
                       ),
                     ),
                   ),
-                if (widget.isSelected)
+                if (widget.isSelected && !locked)
                   Positioned(
                     right: 0,
                     top: 0,
@@ -258,6 +274,7 @@ class _ScreenSized extends StatelessWidget {
 
 class _ChromeButton extends StatelessWidget {
   const _ChromeButton({
+    super.key,
     required this.semanticsLabel,
     required this.icon,
     required this.color,

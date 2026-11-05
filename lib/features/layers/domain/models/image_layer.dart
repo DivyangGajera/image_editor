@@ -19,6 +19,7 @@ class ImageLayer extends CanvasLayer {
     super.rotation = 0.0,
     super.zIndex = 0,
     super.isVisible = true,
+    super.isLocked = false,
     required this.relativeImagePath,
     this.isFlippedHorizontally = false,
     this.activeFilter,
@@ -58,6 +59,7 @@ class ImageLayer extends CanvasLayer {
     double? rotation,
     int? zIndex,
     bool? isVisible,
+    bool? isLocked,
     String? relativeImagePath,
     bool? isFlippedHorizontally,
     String? activeFilter,
@@ -72,6 +74,7 @@ class ImageLayer extends CanvasLayer {
       rotation: rotation ?? this.rotation,
       zIndex: zIndex ?? this.zIndex,
       isVisible: isVisible ?? this.isVisible,
+      isLocked: isLocked ?? this.isLocked,
       relativeImagePath: relativeImagePath ?? this.relativeImagePath,
       isFlippedHorizontally:
           isFlippedHorizontally ?? this.isFlippedHorizontally,
@@ -92,6 +95,7 @@ class ImageLayer extends CanvasLayer {
         other.rotation == rotation &&
         other.zIndex == zIndex &&
         other.isVisible == isVisible &&
+        other.isLocked == isLocked &&
         other.relativeImagePath == relativeImagePath &&
         other.isFlippedHorizontally == isFlippedHorizontally &&
         other.activeFilter == activeFilter &&
@@ -107,6 +111,7 @@ class ImageLayer extends CanvasLayer {
         rotation,
         zIndex,
         isVisible,
+        isLocked,
         relativeImagePath,
         isFlippedHorizontally,
         activeFilter,
@@ -116,6 +121,6 @@ class ImageLayer extends CanvasLayer {
   @override
   String toString() =>
       'ImageLayer(id: $id, x: $x, y: $y, scale: $scale, rotation: $rotation, '
-      'zIndex: $zIndex, isVisible: $isVisible, relativeImagePath: $relativeImagePath, '
+      'zIndex: $zIndex, isVisible: $isVisible, isLocked: $isLocked, relativeImagePath: $relativeImagePath, '
       'isFlippedHorizontally: $isFlippedHorizontally, activeFilter: $activeFilter, originalImagePath: $originalImagePath)';
 }

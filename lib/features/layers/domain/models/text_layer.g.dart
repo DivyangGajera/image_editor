@@ -24,6 +24,7 @@ class TextLayerAdapter extends TypeAdapter<TextLayer> {
       rotation: fields[4] == null ? 0.0 : (fields[4] as num).toDouble(),
       zIndex: fields[5] == null ? 0 : (fields[5] as num).toInt(),
       isVisible: fields[6] == null ? true : fields[6] as bool,
+      isLocked: fields[30] == null ? false : fields[30] as bool,
       text: fields[7] as String,
       fontFamily: fields[8] == null ? 'Roboto' : fields[8] as String,
       isCustomFont: fields[9] == null ? false : fields[9] as bool,
@@ -45,7 +46,7 @@ class TextLayerAdapter extends TypeAdapter<TextLayer> {
   @override
   void write(BinaryWriter writer, TextLayer obj) {
     writer
-      ..writeByte(18)
+      ..writeByte(19)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -81,7 +82,9 @@ class TextLayerAdapter extends TypeAdapter<TextLayer> {
       ..writeByte(16)
       ..write(obj.boxBorderRadius)
       ..writeByte(17)
-      ..write(obj.shadowColorValue);
+      ..write(obj.shadowColorValue)
+      ..writeByte(30)
+      ..write(obj.isLocked);
   }
 
   @override
