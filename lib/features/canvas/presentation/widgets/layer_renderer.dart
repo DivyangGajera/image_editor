@@ -115,12 +115,13 @@ class LayerRenderer extends ConsumerWidget {
       width: 120.0,
       height: 120.0,
       decoration: BoxDecoration(
-        color: Colors.white10,
+        // Neutral greys stay visible on white and on photo backgrounds.
+        color: const Color(0x14000000),
         borderRadius: BorderRadius.circular(8.0),
-        border: Border.all(color: Colors.white24, width: 1.0),
+        border: Border.all(color: const Color(0x33000000), width: 1.0),
       ),
       child: Center(
-        child: Icon(icon, size: 48.0, color: Colors.white70),
+        child: Icon(icon, size: 48.0, color: const Color(0x8A000000)),
       ),
     );
   }
