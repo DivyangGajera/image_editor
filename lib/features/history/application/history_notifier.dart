@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:image_editor/core/utils/app_logger.dart';
 import 'package:image_editor/features/history/data/history_manager.dart';
-import 'package:image_editor/features/layers/domain/models/models.dart';
+import 'package:image_editor/features/history/domain/canvas_snapshot.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'history_notifier.g.dart';
@@ -135,21 +135,21 @@ class HistoryNotifier extends _$HistoryNotifier {
   }
 
   /// Pushes an updated snapshot of layers into the undo history.
-  Future<void> pushState(List<CanvasLayer> layers) async {
-    await _manager.pushState(layers);
+  Future<void> pushState(CanvasSnapshot snapshot) async {
+    await _manager.pushState(snapshot);
     _publish();
   }
 
   /// Reverts to the previous state and moves current layers to redo.
-  Future<List<CanvasLayer>?> undo(List<CanvasLayer> currentLayers) async {
-    final result = await _manager.undo(currentLayers);
+  Future<CanvasSnapshot?> undo(CanvasSnapshot current) async {
+    final result = await _manager.undo(current);
     _publish();
     return result;
   }
 
   /// Restores the forward state and moves current layers to undo.
-  Future<List<CanvasLayer>?> redo(List<CanvasLayer> currentLayers) async {
-    final result = await _manager.redo(currentLayers);
+  Future<CanvasSnapshot?> redo(CanvasSnapshot current) async {
+    final result = await _manager.redo(current);
     _publish();
     return result;
   }

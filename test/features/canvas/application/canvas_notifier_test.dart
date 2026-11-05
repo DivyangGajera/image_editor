@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
+import 'package:image_editor/core/storage/app_bootstrap.dart';
 import 'package:image_editor/core/storage/storage_keys.dart';
 import 'package:image_editor/features/canvas/canvas.dart';
 import 'package:image_editor/features/history/history.dart';
@@ -12,7 +13,7 @@ void main() {
   group('CanvasNotifier', () {
     late Directory tempDir;
     late Box<ProjectModel> projectsBox;
-    late LazyBox<List<dynamic>> historyBox;
+    late LazyBox<dynamic> historyBox;
     late ProjectRepository projectRepository;
     late HistoryManager historyManager;
     late ProviderContainer container;
@@ -30,19 +31,13 @@ void main() {
 
     final canvasUnderTest = canvasProvider(initialProject.id);
 
-    setUpAll(() {
-      if (!Hive.isAdapterRegistered(0)) Hive.registerAdapter(ImageLayerAdapter());
-      if (!Hive.isAdapterRegistered(1)) Hive.registerAdapter(TextLayerAdapter());
-      if (!Hive.isAdapterRegistered(2)) Hive.registerAdapter(DoodleLayerAdapter());
-      if (!Hive.isAdapterRegistered(3)) Hive.registerAdapter(StickerLayerAdapter());
-      if (!Hive.isAdapterRegistered(4)) Hive.registerAdapter(ProjectModelAdapter());
-    });
+    setUpAll(AppBootstrap.registerAdapters);
 
     setUp(() async {
       tempDir = await Directory.systemTemp.createTemp('canvas_notifier_test_');
       Hive.init(tempDir.path);
       projectsBox = await Hive.openBox<ProjectModel>(StorageKeys.projectsBox);
-      historyBox = await Hive.openLazyBox<List<dynamic>>('history_${initialProject.id}');
+      historyBox = await Hive.openLazyBox<dynamic>('history_${initialProject.id}');
 
       projectRepository = ProjectRepository(
         getBaseDir: () async => tempDir,
@@ -404,6 +399,23 @@ void main() {
 
       await notifier.renameProject('   ');
       expect(readState().project.title, 'Diwali Sale');
+    });
+
+    test('setBackgroundColor persists and is undoable together with layers', () async {
+      final notifier = container.read(canvasUnderTest.notifier);
+      await notifier.addLayer(makeText('l-1', 'Sale'));
+
+      await notifier.setBackgroundColor(0xFFFACC15);
+      expect(readState().project.backgroundColorValue, 0xFFFACC15);
+      expect((await projectRepository.loadProject(initialProject.id))!.backgroundColorValue,
+          0xFFFACC15);
+
+      await notifier.undo();
+      expect(readState().project.backgroundColorValue, ProjectModel.defaultBackgroundColor);
+      expect(readState().project.layers, hasLength(1), reason: 'layers are untouched');
+
+      await notifier.redo();
+      expect(readState().project.backgroundColorValue, 0xFFFACC15);
     });
 
     test('undo and redo revert and re-apply canvas layer states', () async {

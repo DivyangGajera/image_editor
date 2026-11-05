@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
+import 'package:image_editor/core/storage/app_bootstrap.dart';
 import 'package:image_editor/core/storage/storage_keys.dart';
 import 'package:image_editor/features/canvas/data/project_repository.dart';
 import 'package:image_editor/features/canvas/domain/models/models.dart';
@@ -16,13 +17,7 @@ void main() {
     late ProjectRepository repository;
     final testDate = DateTime(2026, 10, 15, 14, 0);
 
-    setUpAll(() {
-      if (!Hive.isAdapterRegistered(0)) Hive.registerAdapter(ImageLayerAdapter());
-      if (!Hive.isAdapterRegistered(1)) Hive.registerAdapter(TextLayerAdapter());
-      if (!Hive.isAdapterRegistered(2)) Hive.registerAdapter(DoodleLayerAdapter());
-      if (!Hive.isAdapterRegistered(3)) Hive.registerAdapter(StickerLayerAdapter());
-      if (!Hive.isAdapterRegistered(4)) Hive.registerAdapter(ProjectModelAdapter());
-    });
+    setUpAll(AppBootstrap.registerAdapters);
 
     setUp(() async {
       tempBaseDir = await Directory.systemTemp.createTemp('project_repo_test_');

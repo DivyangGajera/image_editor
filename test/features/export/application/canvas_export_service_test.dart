@@ -287,6 +287,27 @@ void main() {
       expect(center.g, lessThan(60));
     });
 
+    test('fills the canvas with the project background color', () async {
+      final project = ProjectModel(
+        id: 'bg',
+        title: 'Poster',
+        canvasWidth: 20.0,
+        canvasHeight: 20.0,
+        backgroundColorValue: 0xFF3B82F6,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      final out = img.decodePng(
+        await CanvasExportService(projectRepository: mockRepo)
+            .renderAtSize(project: project, outputSize: const Size(20, 20)),
+      )!;
+      final pixel = out.getPixel(10, 10);
+      expect(pixel.r, 0x3B);
+      expect(pixel.g, 0x82);
+      expect(pixel.b, 0xF6);
+    });
+
     test('renderCanvasToBytes uses the resolution tier and keeps the aspect ratio', () async {
       final service = CanvasExportService(projectRepository: mockRepo);
       final project = ProjectModel(

@@ -10,7 +10,7 @@ import 'package:image_editor/features/layers/domain/models/models.dart';
 void main() {
   group('HistoryManager (persistent 500-step engine)', () {
     late Directory tempDir;
-    late LazyBox<List<dynamic>> historyBox;
+    late LazyBox<dynamic> historyBox;
     late HistoryManager manager;
     const testProjectId = 'proj-undo-test-1';
 
@@ -19,7 +19,7 @@ void main() {
     setUp(() async {
       tempDir = await Directory.systemTemp.createTemp('hive_history_test_');
       Hive.init(tempDir.path);
-      historyBox = await Hive.openLazyBox<List<dynamic>>(
+      historyBox = await Hive.openLazyBox<dynamic>(
         HistoryManager.boxNameFor(testProjectId),
       );
       manager = HistoryManager(projectId: testProjectId, historyBox: historyBox);
@@ -37,9 +37,9 @@ void main() {
       return TextLayer(id: 'layer-$index', x: 0.5, y: 0.5, text: 'State $index');
     }
 
-    List<CanvasLayer> snapshot(int index) => <CanvasLayer>[makeTextLayer(index)];
+    CanvasSnapshot snapshot(int index) => CanvasSnapshot(layers: [makeTextLayer(index)]);
 
-    String textOf(List<CanvasLayer>? layers) => (layers!.first as TextLayer).text;
+    String textOf(CanvasSnapshot? snapshot) => (snapshot!.layers.first as TextLayer).text;
 
     /// Simulates an app restart: closes everything and opens a fresh manager
     /// on the same box file.
@@ -47,7 +47,7 @@ void main() {
       await manager.dispose();
       await Hive.close();
       Hive.init(tempDir.path);
-      historyBox = await Hive.openLazyBox<List<dynamic>>(
+      historyBox = await Hive.openLazyBox<dynamic>(
         HistoryManager.boxNameFor(testProjectId),
       );
       manager = HistoryManager(
@@ -184,7 +184,7 @@ void main() {
 
       // The oldest reachable state is now State 11.
       var current = snapshot(26);
-      List<CanvasLayer>? last;
+      CanvasSnapshot? last;
       while (manager.canUndo) {
         last = await manager.undo(current);
         current = last!;
@@ -237,6 +237,18 @@ void main() {
       expect(restarted.canUndo, isFalse);
     });
 
+    test('frames saved before snapshots existed read as a white background', () async {
+      // Older app versions stored each frame as a plain list of layers.
+      await historyBox.put(0, <CanvasLayer>[makeTextLayer(1)]);
+      await historyBox.put(HistoryManager.metaKey, <int>[0, 1, 0]);
+
+      final restarted = await reopen();
+      final restored = await restarted.undo(snapshot(2));
+
+      expect(textOf(restored), 'State 1');
+      expect(restored!.backgroundColorValue, CanvasSnapshot.defaultBackgroundColor);
+    });
+
     test('clear purges RAM and disk', () async {
       for (var i = 1; i <= 55; i++) {
         await manager.pushState(snapshot(i));
@@ -257,7 +269,7 @@ void main() {
 
       await HistoryManager.deleteFromDisk(testProjectId);
 
-      final fresh = await Hive.openLazyBox<List<dynamic>>(
+      final fresh = await Hive.openLazyBox<dynamic>(
         HistoryManager.boxNameFor(testProjectId),
       );
       expect(fresh.isEmpty, isTrue);

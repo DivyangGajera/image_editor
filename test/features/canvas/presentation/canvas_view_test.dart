@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
+import 'package:image_editor/core/storage/app_bootstrap.dart';
 import 'package:image_editor/core/storage/storage_keys.dart';
 import 'package:image_editor/features/canvas/canvas.dart';
 import 'package:image_editor/features/history/history.dart';
@@ -15,7 +16,7 @@ void main() {
   group('CanvasView & TransformableBox Widget Tests', () {
     late Directory tempDir;
     late Box<ProjectModel> projectsBox;
-    late LazyBox<List<dynamic>> historyBox;
+    late LazyBox<dynamic> historyBox;
     late ProjectRepository projectRepository;
     late HistoryManager historyManager;
     final testDate = DateTime(2026, 10, 15, 14, 0);
@@ -46,19 +47,13 @@ void main() {
       updatedAt: testDate,
     );
 
-    setUpAll(() {
-      if (!Hive.isAdapterRegistered(0)) Hive.registerAdapter(ImageLayerAdapter());
-      if (!Hive.isAdapterRegistered(1)) Hive.registerAdapter(TextLayerAdapter());
-      if (!Hive.isAdapterRegistered(2)) Hive.registerAdapter(DoodleLayerAdapter());
-      if (!Hive.isAdapterRegistered(3)) Hive.registerAdapter(StickerLayerAdapter());
-      if (!Hive.isAdapterRegistered(4)) Hive.registerAdapter(ProjectModelAdapter());
-    });
+    setUpAll(AppBootstrap.registerAdapters);
 
     setUp(() async {
       tempDir = await Directory.systemTemp.createTemp('canvas_view_test_');
       Hive.init(tempDir.path);
       projectsBox = await Hive.openBox<ProjectModel>(StorageKeys.projectsBox);
-      historyBox = await Hive.openLazyBox<List<dynamic>>('history_${project.id}');
+      historyBox = await Hive.openLazyBox<dynamic>('history_${project.id}');
 
       projectRepository = ProjectRepository(
         getBaseDir: () async => tempDir,

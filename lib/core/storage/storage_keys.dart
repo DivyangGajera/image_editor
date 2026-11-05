@@ -49,4 +49,5 @@ abstract final class HiveTypeIds {
   static const int projectModel = 4;
   static const int fontEntry = 5;
   static const int userSticker = 6;
+  static const int canvasSnapshot = 7;
 }

@@ -56,7 +56,7 @@ void main() {
     await repository.saveProject(project);
     historyManager = HistoryManager(
       projectId: projectId,
-      historyBox: await Hive.openLazyBox<List<dynamic>>(HistoryManager.boxNameFor(projectId)),
+      historyBox: await Hive.openLazyBox<dynamic>(HistoryManager.boxNameFor(projectId)),
     );
     imageImport = MockImageImportService();
     backgroundRemoval = MockBackgroundRemovalService();

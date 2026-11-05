@@ -1,18 +1,14 @@
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
+import 'package:image_editor/core/storage/app_bootstrap.dart';
 import 'package:image_editor/features/layers/domain/models/models.dart';
 
 void main() {
   group('Layers Domain Models', () {
     late Directory tempDir;
 
-    setUpAll(() {
-      if (!Hive.isAdapterRegistered(0)) Hive.registerAdapter(ImageLayerAdapter());
-      if (!Hive.isAdapterRegistered(1)) Hive.registerAdapter(TextLayerAdapter());
-      if (!Hive.isAdapterRegistered(2)) Hive.registerAdapter(DoodleLayerAdapter());
-      if (!Hive.isAdapterRegistered(3)) Hive.registerAdapter(StickerLayerAdapter());
-    });
+    setUpAll(AppBootstrap.registerAdapters);
 
     setUp(() async {
       tempDir = await Directory.systemTemp.createTemp('hive_layers_test_');

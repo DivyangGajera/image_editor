@@ -44,7 +44,7 @@ void main() {
     );
     historyManager = HistoryManager(
       projectId: projectId,
-      historyBox: await Hive.openLazyBox<List<dynamic>>(HistoryManager.boxNameFor(projectId)),
+      historyBox: await Hive.openLazyBox<dynamic>(HistoryManager.boxNameFor(projectId)),
     );
     // Real Hive I/O cannot complete inside the widget-test fake-async zone.
     await historyManager.load();
@@ -132,6 +132,20 @@ void main() {
     expect(find.text('Diwali Offer'), findsOneWidget);
     final saved = await tester.runAsync(() => repository.loadProject(projectId));
     expect(saved!.title, 'Diwali Offer');
+  });
+
+  testWidgets('the Background tool sets the canvas color', (tester) async {
+    await tester.runAsync(() => createProject(const []));
+    await pumpEditor(tester);
+
+    // The tap leads to a Hive write, so it starts in the real zone.
+    await tester.runAsync(() async => tester.tap(find.byKey(const ValueKey('tool_background'))));
+    await tester.pumpAndSettle();
+    await tapAndSettle(tester, find.byKey(const ValueKey('bg_preset_FACC15')));
+    await pumpUntil(tester, () => canvas().project.backgroundColorValue == 0xFFFACC15);
+
+    final saved = await tester.runAsync(() => repository.loadProject(projectId));
+    expect(saved!.backgroundColorValue, 0xFFFACC15);
   });
 
   testWidgets('shows an error page for a project that does not exist', (tester) async {

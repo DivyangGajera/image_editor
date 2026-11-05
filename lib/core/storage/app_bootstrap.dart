@@ -34,7 +34,12 @@ abstract final class AppBootstrap {
   ///
   /// Safe to call repeatedly (e.g. across tests sharing one isolate).
   static void registerAdapters() {
-    if (Hive.isAdapterRegistered(HiveTypeIds.projectModel)) return;
+    // The generated registrar registers every adapter at once, so new Hive
+    // types are picked up automatically; this flag only prevents duplicates.
+    if (_adaptersRegistered) return;
     Hive.registerAdapters();
+    _adaptersRegistered = true;
   }
+
+  static bool _adaptersRegistered = false;
 }

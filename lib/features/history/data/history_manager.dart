@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:hive_ce/hive.dart';
 import 'package:image_editor/core/constants/app_constants.dart';
 import 'package:image_editor/core/storage/storage_keys.dart';
+import 'package:image_editor/features/history/domain/canvas_snapshot.dart';
 import 'package:image_editor/features/layers/domain/models/models.dart';
 
 /// Persistent, memory-bounded undo/redo engine (default 500 steps) for one project.
@@ -27,7 +28,7 @@ import 'package:image_editor/features/layers/domain/models/models.dart';
 class HistoryManager {
   HistoryManager({
     required this.projectId,
-    LazyBox<List<dynamic>>? historyBox,
+    LazyBox<dynamic>? historyBox,
     int? maxDepth,
     int? inMemoryLimit,
     int? prefetchTrigger,
@@ -56,10 +57,10 @@ class HistoryManager {
   final int inMemoryLimit;
   final int prefetchTrigger;
 
-  LazyBox<List<dynamic>>? _box;
+  LazyBox<dynamic>? _box;
 
   /// Newest undo snapshots; covers keys `[_undoTop - length, _undoTop)`.
-  final List<List<CanvasLayer>> _undoCache = <List<CanvasLayer>>[];
+  final List<CanvasSnapshot> _undoCache = <CanvasSnapshot>[];
 
   int _undoBottom = 0;
   int _undoTop = 0;
@@ -100,11 +101,11 @@ class HistoryManager {
   Future<void> load() => _enqueue(_ensureLoaded);
 
   /// Records [layers] as the newest undo snapshot and invalidates the redo branch.
-  Future<void> pushState(List<CanvasLayer> layers) {
+  Future<void> pushState(CanvasSnapshot snapshot) {
     return _enqueue(() async {
       await _ensureLoaded();
       await _clearRedo();
-      await _pushUndo(_clone(layers));
+      await _pushUndo(snapshot.clone());
       await _writeMeta();
     });
   }
@@ -112,8 +113,8 @@ class HistoryManager {
   /// Returns the previous snapshot and stores [currentLayers] on the redo stack.
   ///
   /// Returns `null` without side effects when there is nothing to undo.
-  Future<List<CanvasLayer>?> undo(List<CanvasLayer> currentLayers) {
-    final result = _enqueue<List<CanvasLayer>?>(() async {
+  Future<CanvasSnapshot?> undo(CanvasSnapshot current) {
+    final result = _enqueue<CanvasSnapshot?>(() async {
       await _ensureLoaded();
       if (!canUndo) return null;
 
@@ -127,11 +128,11 @@ class HistoryManager {
       _undoTop--;
       await box.delete(_undoTop);
 
-      await box.put(redoKeyBase + _redoCount, _clone(currentLayers));
+      await box.put(redoKeyBase + _redoCount, current.clone());
       _redoCount++;
       await _writeMeta();
 
-      return _clone(target);
+      return target.clone();
     });
 
     // Refill the RAM window in the background once it runs low; queued after
@@ -142,7 +143,7 @@ class HistoryManager {
 
   /// Returns the next snapshot from the redo stack and stores [currentLayers]
   /// as the newest undo snapshot. Returns `null` when there is nothing to redo.
-  Future<List<CanvasLayer>?> redo(List<CanvasLayer> currentLayers) {
+  Future<CanvasSnapshot?> redo(CanvasSnapshot current) {
     return _enqueue(() async {
       await _ensureLoaded();
       if (!canRedo) return null;
@@ -153,10 +154,10 @@ class HistoryManager {
       await box.delete(key);
       _redoCount--;
 
-      await _pushUndo(_clone(currentLayers));
+      await _pushUndo(current.clone());
       await _writeMeta();
 
-      return raw == null ? null : _clone(raw.cast<CanvasLayer>());
+      return raw == null ? null : _decode(raw).clone();
     });
   }
 
@@ -195,13 +196,13 @@ class HistoryManager {
     return result;
   }
 
-  Future<LazyBox<List<dynamic>>> _openBox() async {
+  Future<LazyBox<dynamic>> _openBox() async {
     final existing = _box;
     if (existing != null && existing.isOpen) return existing;
 
     final box = Hive.isBoxOpen(boxName)
-        ? Hive.lazyBox<List<dynamic>>(boxName)
-        : await Hive.openLazyBox<List<dynamic>>(boxName);
+        ? Hive.lazyBox<dynamic>(boxName)
+        : await Hive.openLazyBox<dynamic>(boxName);
     _box = box;
     return box;
   }
@@ -211,7 +212,7 @@ class HistoryManager {
     final box = await _openBox();
 
     final meta = await box.get(metaKey);
-    if (meta != null && meta.length == 3) {
+    if (meta is List && meta.length == 3) {
       _undoBottom = meta[0] as int;
       _undoTop = meta[1] as int;
       _redoCount = meta[2] as int;
@@ -221,7 +222,7 @@ class HistoryManager {
     await _prefetchBatch();
   }
 
-  Future<void> _pushUndo(List<CanvasLayer> snapshot) async {
+  Future<void> _pushUndo(CanvasSnapshot snapshot) async {
     final box = await _openBox();
     await box.put(_undoTop, snapshot);
     _undoTop++;
@@ -282,7 +283,7 @@ class HistoryManager {
 
     final box = await _openBox();
     final firstCachedKey = _undoTop - _undoCache.length;
-    final batch = <List<CanvasLayer>>[];
+    final batch = <CanvasSnapshot>[];
     for (var key = firstCachedKey - 1; key >= firstCachedKey - count; key--) {
       final raw = await box.get(key);
       if (raw == null) {
@@ -290,11 +291,15 @@ class HistoryManager {
         await _writeMeta();
         break;
       }
-      batch.insert(0, raw.cast<CanvasLayer>());
+      batch.insert(0, _decode(raw));
     }
     _undoCache.insertAll(0, batch);
   }
 
-  static List<CanvasLayer> _clone(List<CanvasLayer> layers) =>
-      layers.map((layer) => layer.copyWith()).toList();
+  /// Reads a stored frame. Frames written before snapshots carried the
+  /// background color are plain layer lists; those projects were white.
+  static CanvasSnapshot _decode(Object? raw) {
+    if (raw is CanvasSnapshot) return raw;
+    return CanvasSnapshot(layers: (raw as List<dynamic>).cast<CanvasLayer>());
+  }
 }

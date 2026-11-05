@@ -3,28 +3,24 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
+import 'package:image_editor/core/storage/app_bootstrap.dart';
 import 'package:image_editor/features/history/history.dart';
 import 'package:image_editor/features/layers/domain/models/models.dart';
 
 void main() {
   group('HistoryNotifier (500-Step Stress & Rapid Firing)', () {
     late Directory tempDir;
-    late LazyBox<List<dynamic>> historyBox;
+    late LazyBox<dynamic> historyBox;
     late HistoryManager historyManager;
     late ProviderContainer container;
     const testProjectId = 'proj-notifier-stress-1';
 
-    setUpAll(() {
-      if (!Hive.isAdapterRegistered(0)) Hive.registerAdapter(ImageLayerAdapter());
-      if (!Hive.isAdapterRegistered(1)) Hive.registerAdapter(TextLayerAdapter());
-      if (!Hive.isAdapterRegistered(2)) Hive.registerAdapter(DoodleLayerAdapter());
-      if (!Hive.isAdapterRegistered(3)) Hive.registerAdapter(StickerLayerAdapter());
-    });
+    setUpAll(AppBootstrap.registerAdapters);
 
     setUp(() async {
       tempDir = await Directory.systemTemp.createTemp('hive_notifier_test_');
       Hive.init(tempDir.path);
-      historyBox = await Hive.openLazyBox<List<dynamic>>('history_$testProjectId');
+      historyBox = await Hive.openLazyBox<dynamic>('history_$testProjectId');
 
       historyManager = HistoryManager(
         projectId: testProjectId,
@@ -73,7 +69,7 @@ void main() {
 
       // Rapidly fire 500 state changes
       for (int i = 1; i <= 500; i++) {
-        await notifier.pushState([makeTextLayer(i)]);
+        await notifier.pushState(CanvasSnapshot(layers: [makeTextLayer(i)]));
       }
 
       final state = container.read(historyProvider(testProjectId));
@@ -91,21 +87,21 @@ void main() {
 
       // 1. Push 500 states
       for (int i = 1; i <= 500; i++) {
-        await notifier.pushState([makeTextLayer(i)]);
+        await notifier.pushState(CanvasSnapshot(layers: [makeTextLayer(i)]));
       }
 
       expect(container.read(historyProvider(testProjectId)).totalUndoCount, equals(500));
 
       // 2. Rollback all 500 steps in reverse order
-      List<CanvasLayer> currentLayers = [
-        const TextLayer(id: 'active', x: 0.5, y: 0.5, text: 'Active State'),
-      ];
+      var currentLayers = const CanvasSnapshot(layers: [
+        TextLayer(id: 'active', x: 0.5, y: 0.5, text: 'Active State'),
+      ]);
 
       for (int i = 500; i >= 1; i--) {
         final reverted = await notifier.undo(currentLayers);
         expect(reverted, isNotNull, reason: 'Failed to revert at step $i');
-        expect(reverted!.length, equals(1));
-        final layer = reverted.first as TextLayer;
+        expect(reverted!.layers.length, equals(1));
+        final layer = reverted.layers.first as TextLayer;
         expect(layer.text, equals('Step $i'));
         currentLayers = reverted;
       }
@@ -120,8 +116,8 @@ void main() {
       for (int i = 1; i <= 500; i++) {
         final restored = await notifier.redo(currentLayers);
         expect(restored, isNotNull, reason: 'Failed to redo at step $i');
-        expect(restored!.length, equals(1));
-        final layer = restored.first as TextLayer;
+        expect(restored!.layers.length, equals(1));
+        final layer = restored.layers.first as TextLayer;
         expect(
           layer.text,
           i == 500 ? 'Active State' : 'Step ${i + 1}',
@@ -141,11 +137,11 @@ void main() {
 
       // Push 50 states
       for (int i = 1; i <= 50; i++) {
-        await notifier.pushState([makeTextLayer(i)]);
+        await notifier.pushState(CanvasSnapshot(layers: [makeTextLayer(i)]));
       }
 
       // Undo 20 steps
-      List<CanvasLayer> current = [makeTextLayer(51)];
+      var current = CanvasSnapshot(layers: [makeTextLayer(51)]);
       for (int i = 0; i < 20; i++) {
         final res = await notifier.undo(current);
         current = res!;
@@ -157,9 +153,9 @@ void main() {
       expect(state.canRedo, isTrue);
 
       // Now push a new divergent branch state
-      await notifier.pushState([
-        const TextLayer(id: 'divergent', x: 0.9, y: 0.9, text: 'Branch State'),
-      ]);
+      await notifier.pushState(const CanvasSnapshot(layers: [
+        TextLayer(id: 'divergent', x: 0.9, y: 0.9, text: 'Branch State'),
+      ]));
 
       state = container.read(historyProvider(testProjectId));
       expect(state.totalUndoCount, equals(31));
@@ -171,7 +167,7 @@ void main() {
       final notifier = container.read(historyProvider(testProjectId).notifier);
 
       for (int i = 1; i <= 10; i++) {
-        await notifier.pushState([makeTextLayer(i)]);
+        await notifier.pushState(CanvasSnapshot(layers: [makeTextLayer(i)]));
       }
 
       expect(container.read(historyProvider(testProjectId)).canUndo, isTrue);
