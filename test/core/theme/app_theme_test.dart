@@ -16,6 +16,16 @@ void main() {
     expect(theme.textTheme.labelLarge!.fontFamily, AppTheme.textFont);
   });
 
+  test('styles handed to components carry real sizes', () {
+    final theme = AppTheme.light();
+
+    expect(theme.appBarTheme.titleTextStyle!.fontSize, 22.0);
+    expect(theme.textTheme.titleLarge!.fontSize, 22.0);
+    expect(theme.textTheme.bodyMedium!.fontSize, 14.0);
+    expect(theme.textTheme.labelLarge!.fontSize, 14.0);
+    expect(theme.snackBarTheme.contentTextStyle!.fontSize, 14.0);
+  });
+
   test('uses the brand palette', () {
     final colors = AppTheme.light().colorScheme;
 
