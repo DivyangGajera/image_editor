@@ -91,6 +91,17 @@ void main() {
     expect(result, isNull);
   });
 
+  testWidgets('unexpected failures show their technical details', (tester) async {
+    await openPrompt(tester);
+    when(() => service.cutOut(any()))
+        .thenThrow(BackgroundRemovalException.failed('mask has 7 values for a 10x10 image'));
+
+    await tester.tap(find.byKey(const ValueKey('prompt_remove_background')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Details: mask has 7 values for a 10x10 image'), findsOneWidget);
+  });
+
   testWidgets('going back keeps the original', (tester) async {
     await openPrompt(tester);
 

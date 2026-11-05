@@ -6,6 +6,7 @@ import 'package:image/image.dart' as img;
 import 'package:image_editor/features/canvas/data/project_repository.dart';
 import 'package:image_editor/features/segmentation/application/background_removal_service.dart';
 import 'package:image_editor/features/segmentation/application/pixel_cutout_processor.dart';
+import 'package:image_editor/features/segmentation/application/subject_model_installer.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockProjectRepository extends Mock implements ProjectRepository {}
@@ -13,11 +14,13 @@ class MockProjectRepository extends Mock implements ProjectRepository {}
 /// Marks the left half of the image as the subject.
 class LeftHalfMasker implements SubjectMasker {
   final List<String> paths = [];
+  final List<int> analysedWidths = [];
 
   @override
   Future<List<double>> maskFor(String imagePath) async {
     paths.add(imagePath);
     final image = img.decodeImage(await File(imagePath).readAsBytes())!;
+    analysedWidths.add(image.width);
     return [
       for (var y = 0; y < image.height; y++)
         for (var x = 0; x < image.width; x++) x < image.width / 2 ? 1.0 : 0.0,
@@ -32,8 +35,23 @@ class FixedMasker implements SubjectMasker {
   @override
   Future<List<double>> maskFor(String imagePath) async {
     final value = result;
-    if (value is Exception) throw value;
+    if (value is Exception || value is Error) throw value;
     return value as List<double>;
+  }
+}
+
+class FakeInstaller implements SubjectModelInstaller {
+  const FakeInstaller(this.status) : failure = null;
+  const FakeInstaller.failing(this.failure) : status = SubjectModelStatus.available;
+
+  final SubjectModelStatus status;
+  final String? failure;
+
+  @override
+  Future<SubjectModelStatus> ensureModel() async {
+    final error = failure;
+    if (error != null) throw SubjectModelException(error);
+    return status;
   }
 }
 
@@ -56,9 +74,14 @@ void main() {
         img.encodeJpg(img.Image(width: 20, height: 10)..clear(img.ColorRgb8(200, 50, 50))),
       );
 
-  BackgroundRemovalService serviceWith(SubjectMasker masker) => BackgroundRemovalService(
+  BackgroundRemovalService serviceWith(
+    SubjectMasker masker, {
+    SubjectModelInstaller installer = const FakeInstaller(SubjectModelStatus.available),
+  }) =>
+      BackgroundRemovalService(
         projectRepository: repository,
         masker: masker,
+        modelInstaller: installer,
         getTempDir: () async => tempDir,
         // Synchronous processing: no isolates in unit tests.
         pixelCutoutProcessor: const SyncCutoutProcessor(),
@@ -83,6 +106,66 @@ void main() {
     await expectLater(
       service.cutOut(photo()),
       throwsA(same(BackgroundRemovalException.noSubject)),
+    );
+  });
+
+  test('a large photo is analysed small but cut out at full size', () async {
+    final masker = LeftHalfMasker();
+    final big = Uint8List.fromList(
+      img.encodeJpg(img.Image(width: 3000, height: 1000)..clear(img.ColorRgb8(20, 200, 20))),
+    );
+
+    final cut = img.decodePng(await serviceWith(masker).cutOut(big))!;
+
+    expect(masker.analysedWidths.single, SegmentationInput.maxDimension);
+    expect(cut.width, 3000);
+    expect(cut.height, 1000);
+    expect(cut.getPixel(100, 500).a, greaterThan(200));
+    expect(cut.getPixel(2900, 500).a, 0);
+  });
+
+  test('while Play services downloads the model, the user is told to wait', () async {
+    final service = serviceWith(
+      LeftHalfMasker(),
+      installer: const FakeInstaller(SubjectModelStatus.installing),
+    );
+
+    await expectLater(
+      service.cutOut(photo()),
+      throwsA(same(BackgroundRemovalException.modelNotReady)),
+    );
+  });
+
+  test('Play services failures are explained with their details', () async {
+    final service = serviceWith(
+      LeftHalfMasker(),
+      installer: const FakeInstaller.failing('MODEL_INSTALL_FAILED: no Play services'),
+    );
+
+    await expectLater(
+      service.cutOut(photo()),
+      throwsA(isA<BackgroundRemovalException>()
+          .having((e) => e.detail, 'detail', 'MODEL_INSTALL_FAILED: no Play services')),
+    );
+  });
+
+  test('a mask of the wrong size fails with a precise detail', () async {
+    final service = serviceWith(FixedMasker(List<double>.filled(7, 1.0)));
+
+    await expectLater(
+      service.cutOut(photo()),
+      throwsA(isA<BackgroundRemovalException>()
+          .having((e) => e.detail, 'detail', contains('mask has 7 values'))),
+    );
+  });
+
+  test('unexpected errors become a removal failure carrying the cause', () async {
+    final service = serviceWith(FixedMasker(StateError('native crash')));
+
+    await expectLater(
+      service.cutOut(photo()),
+      throwsA(isA<BackgroundRemovalException>()
+          .having((e) => e.detail, 'detail', contains('native crash'))),
     );
   });
 
