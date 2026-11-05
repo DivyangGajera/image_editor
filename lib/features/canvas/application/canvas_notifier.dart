@@ -81,6 +81,10 @@ class CanvasNotifier extends _$CanvasNotifier {
   /// The loaded canvas state. Mutations are only valid once loading completed.
   CanvasState get _current => state.requireValue;
 
+  /// The loaded canvas state, for collaborators holding this notifier (e.g.
+  /// editor commands) that must not depend on a provider `ref`.
+  CanvasState get currentState => state.requireValue;
+
   set _current(CanvasState value) => state = AsyncData<CanvasState>(value);
 
   /// Layers captured when the current gesture began; null when idle.

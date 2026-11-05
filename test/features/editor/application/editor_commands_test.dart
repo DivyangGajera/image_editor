@@ -227,6 +227,76 @@ void main() {
         ));
   });
 
+  test('commands obtained from the provider still work after an async gap', () async {
+    // The editor reads editorCommandsProvider without listening to it and then
+    // awaits the photo picker and cropper before touching the canvas.
+    final providerContainer = ProviderContainer(
+      overrides: [
+        projectRepositoryProvider.overrideWithValue(repository),
+        historyManagerProvider(projectId).overrideWithValue(historyManager),
+        imageImportServiceProvider.overrideWithValue(imageImport),
+      ],
+    );
+    addTearDown(providerContainer.dispose);
+    providerContainer.listen(canvasProvider(projectId), (_, _) {});
+    await providerContainer.read(canvasProvider(projectId).future);
+
+    when(() => imageImport.pickAndCropImage(
+          source: any(named: 'source'),
+          projectId: any(named: 'projectId'),
+          canvasSize: any(named: 'canvasSize'),
+        )).thenAnswer((_) async {
+      // The user spends time in the picker and cropper.
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      return const ImageLayer(
+        id: 'late-photo',
+        x: 0.5,
+        y: 0.5,
+        relativeImagePath: 'projects/editor-commands/images/a.jpg',
+      );
+    });
+
+    final commands = providerContainer.read(editorCommandsProvider(projectId));
+    expect(await commands.addPhoto(ImageSource.gallery), isTrue);
+    expect(
+      providerContainer.read(canvasProvider(projectId)).requireValue.project.layers.single.id,
+      'late-photo',
+    );
+  });
+
+  test('a bundled sticker added through the provider lands on the canvas', () async {
+    final providerContainer = ProviderContainer(
+      overrides: [
+        projectRepositoryProvider.overrideWithValue(repository),
+        historyManagerProvider(projectId).overrideWithValue(historyManager),
+      ],
+    );
+    addTearDown(providerContainer.dispose);
+    providerContainer.listen(canvasProvider(projectId), (_, _) {});
+    await providerContainer.read(canvasProvider(projectId).future);
+
+    // Reads the real bundled asset (an async gap) before adding the layer.
+    await providerContainer.read(editorCommandsProvider(projectId)).addSticker(
+          const BundledStickerSelection(
+            StickerItem(
+              id: 'discount_bogo',
+              title: 'BOGO',
+              assetPath: 'assets/stickers/discounts/discount_bogo.png',
+              category: 'Discounts',
+            ),
+          ),
+        );
+
+    final layer = providerContainer
+        .read(canvasProvider(projectId))
+        .requireValue
+        .project
+        .layers
+        .single as StickerLayer;
+    expect(layer.assetPath, 'assets/stickers/discounts/discount_bogo.png');
+    expect(layer.scale, greaterThan(0));
+  });
+
   group('cropping', () {
     const cropped = ImageLayer(
       id: 'photo',
