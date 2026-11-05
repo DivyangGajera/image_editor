@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_editor/features/canvas/domain/models/models.dart';
 import 'package:image_editor/features/export/application/export_notifier.dart';
 import 'package:image_editor/features/export/domain/models/models.dart';
-import 'package:image_editor/features/export/presentation/widgets/share_sheet_modal.dart';
 import 'package:image_editor/features/export/presentation/widgets/watermark_config_view.dart';
 
 /// Modal dialog allowing the user to configure format, resolution, watermarks,
@@ -47,21 +46,16 @@ class _ExportDialogState extends ConsumerState<ExportDialog> {
   }
 
   Future<void> _handleExport() async {
-    try {
-      final savedPath = await ref
-          .read(exportProvider.notifier)
-          .exportProject(project: widget.project, config: _config);
-
-      if (savedPath != null && mounted) {
-        Navigator.of(context).pop(savedPath);
-        await ShareSheetModal.show(context, savedFilePath: savedPath);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Export failed: $e')),
-        );
-      }
+    final saved = await ref
+        .read(exportProvider.notifier)
+        .exportProject(project: widget.project, config: _config);
+    if (!mounted) return;
+    if (saved) {
+      Navigator.of(context).pop();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ref.read(exportProvider).error ?? 'Export failed.')),
+      );
     }
   }
 

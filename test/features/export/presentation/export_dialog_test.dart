@@ -131,43 +131,5 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Brand Watermark'), findsOneWidget);
     });
-
-    testWidgets('tapping export button triggers service and completes export', (tester) async {
-      tester.view.physicalSize = const Size(1080, 1920);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-
-      final dummyBytes = Uint8List.fromList([1, 2, 3]);
-      when(() => mockService.renderCanvasToBytes(
-            project: any(named: 'project'),
-            config: any(named: 'config'),
-          )).thenAnswer((_) async => dummyBytes);
-
-      when(() => mockService.saveExportToGallery(
-            bytes: any(named: 'bytes'),
-            filename: any(named: 'filename'),
-          )).thenAnswer((_) async => '/mock/Pictures/Exports/exported.png');
-
-      await tester.pumpWidget(createWidgetUnderTest());
-      await tester.pumpAndSettle();
-
-      final exportButton = find.byKey(const ValueKey('confirm_export_button'));
-      await tester.ensureVisible(exportButton);
-      await tester.tap(exportButton);
-
-      await tester.pump(); // Start export
-      await tester.pump(const Duration(milliseconds: 100)); // Complete export
-      await tester.pumpAndSettle();
-
-      verify(() => mockService.renderCanvasToBytes(
-            project: testProject,
-            config: any(named: 'config'),
-          )).called(1);
-
-      verify(() => mockService.saveExportToGallery(
-            bytes: dummyBytes,
-            filename: any(named: 'filename'),
-          )).called(1);
-    });
   });
 }

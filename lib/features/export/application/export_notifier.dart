@@ -1,124 +1,85 @@
 import 'package:flutter/foundation.dart';
 import 'package:image_editor/features/canvas/domain/models/project_model.dart';
 import 'package:image_editor/features/export/application/canvas_export_service.dart';
+import 'package:image_editor/features/export/application/gallery_saver.dart';
 import 'package:image_editor/features/export/domain/models/models.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:uuid/uuid.dart';
 
 part 'export_notifier.g.dart';
 
-/// State representation for the canvas export workflow.
+/// State of the export workflow.
 @immutable
 class ExportState {
   const ExportState({
     this.isExporting = false,
-    this.progress,
-    this.exportedFilePath,
     this.exportedBytes,
     this.error,
   });
 
-  /// Whether headless rendering and file writing are in progress.
+  /// Whether rendering and saving are in progress.
   final bool isExporting;
 
-  /// Optional fractional progress value between 0.0 and 1.0.
-  final double? progress;
-
-  /// Absolute file system path of the exported file once saved.
-  final String? exportedFilePath;
-
-  /// In-memory raw bytes of the exported image.
+  /// The last successfully exported image.
   final Uint8List? exportedBytes;
 
-  /// Error message if export failed.
+  /// User-facing message of the last failure.
   final String? error;
-
-  ExportState copyWith({
-    bool? isExporting,
-    double? progress,
-    String? exportedFilePath,
-    Uint8List? exportedBytes,
-    String? error,
-    bool clearError = false,
-    bool clearExport = false,
-  }) {
-    return ExportState(
-      isExporting: isExporting ?? this.isExporting,
-      progress: progress ?? this.progress,
-      exportedFilePath:
-          clearExport ? null : (exportedFilePath ?? this.exportedFilePath),
-      exportedBytes:
-          clearExport ? null : (exportedBytes ?? this.exportedBytes),
-      error: clearError ? null : (error ?? this.error),
-    );
-  }
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is ExportState &&
-          runtimeType == other.runtimeType &&
-          isExporting == other.isExporting &&
-          progress == other.progress &&
-          exportedFilePath == other.exportedFilePath &&
-          error == other.error;
+          other.isExporting == isExporting &&
+          identical(other.exportedBytes, exportedBytes) &&
+          other.error == error;
 
   @override
-  int get hashCode => Object.hash(
-        isExporting,
-        progress,
-        exportedFilePath,
-        error,
-      );
+  int get hashCode => Object.hash(isExporting, exportedBytes, error);
 }
 
-/// Riverpod notifier coordinating headless export jobs and local gallery persistence.
+/// Renders a project and saves it to the gallery's app album.
 @Riverpod(keepAlive: true)
 class ExportNotifier extends _$ExportNotifier {
   @override
   ExportState build() => const ExportState();
 
-  /// Executes the headless render pipeline and saves the resulting image to disk.
-  Future<String?> exportProject({
+  /// File name (without extension) for an export made at [time], e.g.
+  /// `Chitred_20261105_093012`.
+  static String fileNameFor(DateTime time) {
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${GalGallerySaver.album}_${time.year}${two(time.month)}${two(time.day)}_'
+        '${two(time.hour)}${two(time.minute)}${two(time.second)}';
+  }
+
+  /// Exports [project] with [config] and saves it to the gallery.
+  ///
+  /// Returns true on success; on failure the message is in [ExportState.error].
+  Future<bool> exportProject({
     required ProjectModel project,
     required ExportConfig config,
-    String? filename,
   }) async {
+    if (state.isExporting) return false;
+    final service = ref.read(canvasExportServiceProvider);
+    final gallery = ref.read(gallerySaverProvider);
     state = const ExportState(isExporting: true);
 
     try {
-      final service = ref.read(canvasExportServiceProvider);
-      final bytes = await service.renderCanvasToBytes(
-        project: project,
-        config: config,
-      );
-
-      final extension = config.format == ExportFormat.png ? 'png' : 'jpg';
-      final actualFilename =
-          filename ?? 'export_${project.id}_${const Uuid().v4()}.$extension';
-
-      final savedPath = await service.saveExportToGallery(
-        bytes: bytes,
-        filename: actualFilename,
-      );
-
-      state = ExportState(
-        isExporting: false,
-        exportedFilePath: savedPath,
-        exportedBytes: bytes,
-      );
-
-      return savedPath;
-    } catch (e) {
-      state = ExportState(
-        isExporting: false,
-        error: e.toString(),
-      );
-      rethrow;
+      final bytes = await service.renderCanvasToBytes(project: project, config: config);
+      await gallery.save(bytes, name: fileNameFor(DateTime.now()));
+      if (ref.mounted) state = ExportState(exportedBytes: bytes);
+      return true;
+    } on GallerySaveException catch (error) {
+      if (ref.mounted) state = ExportState(error: error.message);
+      return false;
+    } catch (_) {
+      if (ref.mounted) {
+        state = const ExportState(error: 'The image could not be created. Please try again.');
+      }
+      return false;
     }
   }
 
-  /// Clears previous export data.
+  /// Clears the result of the last export.
   void clear() {
     state = const ExportState();
   }

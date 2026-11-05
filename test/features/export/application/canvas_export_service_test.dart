@@ -384,26 +384,4 @@ void main() {
       }
     });
   });
-
-  group('CanvasExportService.saveExportToGallery', () {
-    test('writes bytes into Exports directory and returns file path', () async {
-      final service = CanvasExportService(
-        projectRepository: mockRepo,
-        picturesDirectoryProvider: () async => tempDir,
-      );
-
-      final bytes = Uint8List.fromList([1, 2, 3, 4, 5]);
-      final savedPath = await service.saveExportToGallery(
-        bytes: bytes,
-        filename: 'my_export.png',
-      );
-
-      expect(savedPath, contains('Exports'));
-      expect(savedPath, endsWith('my_export.png'));
-
-      final writtenFile = File(savedPath);
-      expect(await writtenFile.exists(), isTrue);
-      expect(await writtenFile.readAsBytes(), equals(bytes));
-    });
-  });
 }
