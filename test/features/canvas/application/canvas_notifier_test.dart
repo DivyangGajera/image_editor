@@ -328,6 +328,18 @@ void main() {
       expect(readState().project.layers.single.isLocked, isFalse);
     });
 
+    test('duplicating a locked layer gives an unlocked copy that can be moved', () async {
+      final notifier = container.read(canvasUnderTest.notifier);
+      await notifier.addLayer(makeText('l-0', 'Logo'));
+      await notifier.toggleLock('l-0');
+
+      final copyId = await notifier.duplicateLayer('l-0');
+
+      final layers = readState().project.layers;
+      expect(layers.firstWhere((l) => l.id == 'l-0').isLocked, isTrue);
+      expect(layers.firstWhere((l) => l.id == copyId).isLocked, isFalse);
+    });
+
     test('applyCutout hides the source and stacks the cutout on top with its transform',
         () async {
       final notifier = container.read(canvasUnderTest.notifier);
