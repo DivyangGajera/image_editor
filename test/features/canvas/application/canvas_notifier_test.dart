@@ -395,6 +395,17 @@ void main() {
       expect(persisted!.layers.single.id, 'late');
     });
 
+    test('renameProject trims, persists and ignores blank titles', () async {
+      final notifier = container.read(canvasUnderTest.notifier);
+
+      await notifier.renameProject('  Diwali Sale  ');
+      expect(readState().project.title, 'Diwali Sale');
+      expect((await projectRepository.loadProject(initialProject.id))!.title, 'Diwali Sale');
+
+      await notifier.renameProject('   ');
+      expect(readState().project.title, 'Diwali Sale');
+    });
+
     test('undo and redo revert and re-apply canvas layer states', () async {
       final notifier = container.read(canvasUnderTest.notifier);
       final l1 = makeText('l-1', 'First');
