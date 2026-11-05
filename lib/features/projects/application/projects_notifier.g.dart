@@ -36,7 +36,7 @@ final class ProjectsNotifierProvider
   ProjectsNotifier create() => ProjectsNotifier();
 }
 
-String _$projectsNotifierHash() => r'46eab110537b422715f17edcb1d6096759604d66';
+String _$projectsNotifierHash() => r'be306f3565ae3d5b141431f60bea4b79d883be6b';
 
 /// All saved projects, most recently edited first, plus project management.
 

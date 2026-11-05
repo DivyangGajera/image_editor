@@ -5,8 +5,6 @@ import 'package:image_cropper/image_cropper.dart';
 import 'package:image_editor/core/theme/app_theme.dart';
 import 'package:image_editor/features/canvas/data/project_repository.dart';
 import 'package:image_editor/features/images/application/image_normalizer.dart';
-import 'package:image_editor/features/layers/application/layer_placement.dart';
-import 'package:image_editor/features/layers/domain/models/image_layer.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
@@ -154,28 +152,6 @@ class ImageImportService {
       width: normalized.width,
       height: normalized.height,
       originalPath: originalPath,
-    );
-  }
-
-  /// Imports a photo (see [importPhoto]) and returns a new [ImageLayer]
-  /// scaled to fit [canvasSize]. Returns `null` when the user cancels.
-  Future<ImageLayer?> pickAndCropImage({
-    required ImageSource source,
-    required String projectId,
-    required Size canvasSize,
-    double defaultX = 0.5,
-    double defaultY = 0.5,
-  }) async {
-    final photo = await importPhoto(source: source, projectId: projectId);
-    if (photo == null) return null;
-
-    return ImageLayer(
-      id: const Uuid().v4(),
-      x: defaultX,
-      y: defaultY,
-      scale: LayerPlacement.fitScale(contentSize: photo.size, canvasSize: canvasSize),
-      relativeImagePath: photo.relativePath,
-      originalImagePath: photo.originalPath,
     );
   }
 }

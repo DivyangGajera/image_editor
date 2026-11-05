@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:image_editor/features/canvas/application/canvas_notifier.dart';
@@ -46,17 +47,45 @@ class EditorCommands {
     return ui.Size(project.canvasWidth, project.canvasHeight);
   }
 
-  /// Lets the user pick and crop a photo from [source] and adds it to the
-  /// canvas, fitted to the canvas. Returns false if the user cancelled.
-  Future<bool> addPhoto(ImageSource source) async {
-    final layer = await _imageImport.pickAndCropImage(
-      source: source,
-      projectId: projectId,
-      canvasSize: _canvasSize,
+  /// Lets the user pick and crop a photo from [source] and saves it into the
+  /// project. Returns null if the user cancelled. Add it with
+  /// [addImportedPhoto] (after optionally removing its background).
+  Future<ImportedPhoto?> importPhoto(ImageSource source) {
+    return _imageImport.importPhoto(source: source, projectId: projectId);
+  }
+
+  /// Bytes of an imported photo, e.g. for the background-removal prompt.
+  Future<Uint8List> readImportedPhoto(ImportedPhoto photo) async =>
+      (await _projectRepository.resolveRelativePath(photo.relativePath)).readAsBytes();
+
+  /// Adds [photo] to the canvas, fitted to the canvas. With [cutoutPng] the
+  /// cut-out is saved and used instead; it then crops on its own, so it gets
+  /// no separate original.
+  Future<void> addImportedPhoto(ImportedPhoto photo, {Uint8List? cutoutPng}) async {
+    final String imagePath;
+    final String? originalPath;
+    if (cutoutPng != null) {
+      imagePath = await _projectRepository.saveLayerImage(
+        projectId,
+        cutoutPng,
+        'cutout_${const Uuid().v4()}.png',
+      );
+      originalPath = null;
+    } else {
+      imagePath = photo.relativePath;
+      originalPath = photo.originalPath;
+    }
+
+    await _canvas().addLayer(
+      ImageLayer(
+        id: const Uuid().v4(),
+        x: 0.5,
+        y: 0.5,
+        scale: LayerPlacement.fitScale(contentSize: photo.size, canvasSize: _canvasSize),
+        relativeImagePath: imagePath,
+        originalImagePath: originalPath,
+      ),
     );
-    if (layer == null) return false;
-    await _canvas().addLayer(layer);
-    return true;
   }
 
   /// Adds a new text layer, scaled so its font size reads like it would on a

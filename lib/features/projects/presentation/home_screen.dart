@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_editor/core/constants/app_constants.dart';
+import 'package:image_editor/core/utils/app_logger.dart';
 import 'package:image_editor/features/canvas/domain/models/project_model.dart';
 import 'package:image_editor/features/collage/presentation/screens/collage_setup_screen.dart';
 import 'package:image_editor/features/editor/presentation/editor_screen.dart';
@@ -9,6 +10,7 @@ import 'package:image_editor/features/projects/presentation/widgets/empty_projec
 import 'package:image_editor/features/projects/presentation/widgets/new_project_sheet.dart';
 import 'package:image_editor/features/projects/presentation/widgets/project_actions_sheet.dart';
 import 'package:image_editor/features/projects/presentation/widgets/project_card.dart';
+import 'package:image_editor/features/segmentation/presentation/background_removal_prompt.dart';
 
 /// Opens the editor for a project; injectable so tests can observe navigation.
 typedef OpenEditor = Future<void> Function(BuildContext context, String projectId);
@@ -47,7 +49,12 @@ class HomeScreen extends ConsumerWidget {
         case BlankCanvasChoice(:final size):
           project = await notifier.createBlank(canvasSize: size);
         case PhotoChoice(:final source):
-          project = await notifier.createFromPhoto(source);
+          final pending = await notifier.importPhotoForNewProject(source);
+          if (pending == null || !context.mounted) return;
+          final bytes = await notifier.readPendingPhoto(pending);
+          if (!context.mounted) return;
+          final cutout = await BackgroundRemovalPrompt.show(context, imageBytes: bytes);
+          project = await notifier.createFromImportedPhoto(pending, cutoutPng: cutout);
         case CollageChoice():
           project = await Navigator.of(context).push<ProjectModel>(
             MaterialPageRoute(builder: (_) => const CollageSetupScreen()),
@@ -56,7 +63,8 @@ class HomeScreen extends ConsumerWidget {
       if (project != null && context.mounted) {
         await _open(context, ref, project.id);
       }
-    } catch (_) {
+    } catch (error, stackTrace) {
+      AppLogger.error('Could not create a project', tag: 'Projects', error: error, stackTrace: stackTrace);
       if (context.mounted) _showError(context, 'Could not create the project.');
     }
   }

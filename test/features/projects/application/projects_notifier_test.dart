@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -93,24 +94,30 @@ void main() {
     expect(thumb.width, 384);
   });
 
-  test('createFromPhoto sizes the canvas to the photo and fills it', () async {
+  void stubPhoto(ImportedPhoto? Function(String projectId) photo) {
     when(() => imageImport.importPhoto(
           source: any(named: 'source'),
           projectId: any(named: 'projectId'),
         )).thenAnswer(
-      (invocation) async => ImportedPhoto(
-        relativePath:
-            'projects/${invocation.namedArguments[#projectId]}/images/photo.jpg',
+      (invocation) async => photo(invocation.namedArguments[#projectId] as String),
+    );
+  }
+
+  ImportedPhoto photoFor(String id) => ImportedPhoto(
+        relativePath: 'projects/$id/images/photo.jpg',
+        originalPath: 'projects/$id/images/orig.jpg',
         width: 2048,
         height: 1536,
-        originalPath: 'projects/${invocation.namedArguments[#projectId]}/images/orig.jpg',
-      ),
-    );
+      );
 
-    final project = await notifier().createFromPhoto(ImageSource.gallery);
+  test('a photo project gets the photo\'s shape, with the photo filling it', () async {
+    stubPhoto(photoFor);
 
-    expect(project, isNotNull);
-    expect(project!.canvasWidth, 1440);
+    final pending = await notifier().importPhotoForNewProject(ImageSource.gallery);
+    final project = await notifier().createFromImportedPhoto(pending!);
+
+    expect(project.id, pending.projectId);
+    expect(project.canvasWidth, 1440);
     expect(project.canvasHeight, 1080);
     final layer = project.layers.single as ImageLayer;
     expect(layer.scale, closeTo(1440 / 2048, 1e-9));
@@ -119,13 +126,24 @@ void main() {
     expect((await projects()).single.id, project.id);
   });
 
-  test('createFromPhoto creates nothing when the user cancels', () async {
-    when(() => imageImport.importPhoto(
-          source: any(named: 'source'),
-          projectId: any(named: 'projectId'),
-        )).thenAnswer((_) async => null);
+  test('a photo project can use the photo\'s cut-out instead', () async {
+    stubPhoto(photoFor);
 
-    expect(await notifier().createFromPhoto(ImageSource.camera), isNull);
+    final pending = await notifier().importPhotoForNewProject(ImageSource.gallery);
+    final project = await notifier().createFromImportedPhoto(
+      pending!,
+      cutoutPng: Uint8List.fromList(img.encodePng(img.Image(width: 4, height: 3, numChannels: 4))),
+    );
+
+    final layer = project.layers.single as ImageLayer;
+    expect(layer.relativeImagePath, startsWith('projects/${project.id}/images/cutout_'));
+    expect(layer.originalImagePath, isNull);
+  });
+
+  test('cancelling the photo pick creates nothing', () async {
+    stubPhoto((_) => null);
+
+    expect(await notifier().importPhotoForNewProject(ImageSource.camera), isNull);
     expect(await projects(), isEmpty);
   });
 
