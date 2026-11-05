@@ -132,7 +132,7 @@ final class WatermarkSettingsNotifierProvider
 }
 
 String _$watermarkSettingsNotifierHash() =>
-    r'5544df732be1f8e5ae1298b742b669ecb5e1a798';
+    r'ed1110a8bc50a9f62b99476dad56c56bab58c706';
 
 /// The user's remembered brand watermark, set up once and offered on every
 /// export.

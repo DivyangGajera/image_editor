@@ -59,4 +59,4 @@ final class BackgroundRemovalServiceProvider
 }
 
 String _$backgroundRemovalServiceHash() =>
-    r'1341f3e384cb621d0941b8ea32efe47d358962d4';
+    r'd3586dc436928d811793819422c52310a120d864';

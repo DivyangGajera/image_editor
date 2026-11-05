@@ -76,21 +76,36 @@ class PixelCutoutProcessor {
     // Buffer to hold intermediate alpha values for edge smoothing
     final alphas = Uint8List(imgWidth * imgHeight);
 
-    // 1. Compute alpha channel based on confidence mask
+    // 1. Compute alpha from the mask. A mask smaller than the image is
+    // sampled bilinearly so cut-out edges stay smooth when scaled up.
+    final scaleX = maskW / imgWidth;
+    final scaleY = maskH / imgHeight;
+    final sameSize = maskW == imgWidth && maskH == imgHeight;
+
+    double sample(int x, int y) {
+      if (sameSize) return confidences[y * maskW + x];
+      final fx = ((x + 0.5) * scaleX - 0.5).clamp(0.0, maskW - 1.0);
+      final fy = ((y + 0.5) * scaleY - 0.5).clamp(0.0, maskH - 1.0);
+      final x0 = fx.floor();
+      final y0 = fy.floor();
+      final x1 = x0 + 1 < maskW ? x0 + 1 : x0;
+      final y1 = y0 + 1 < maskH ? y0 + 1 : y0;
+      final tx = fx - x0;
+      final ty = fy - y0;
+      final top = confidences[y0 * maskW + x0] * (1 - tx) + confidences[y0 * maskW + x1] * tx;
+      final bottom = confidences[y1 * maskW + x0] * (1 - tx) + confidences[y1 * maskW + x1] * tx;
+      return top * (1 - ty) + bottom * ty;
+    }
+
+    final range = 1.0 - threshold;
     for (int y = 0; y < imgHeight; y++) {
-      final my = (y * maskH ~/ imgHeight).clamp(0, maskH - 1);
-      final maskRowOffset = my * maskW;
       final imgRowOffset = y * imgWidth;
-
       for (int x = 0; x < imgWidth; x++) {
-        final mx = (x * maskW ~/ imgWidth).clamp(0, maskW - 1);
-        final confidence = confidences[maskRowOffset + mx];
-
+        final confidence = sample(x, y);
         if (confidence < threshold) {
           alphas[imgRowOffset + x] = 0;
         } else {
-          // Soft ramp between threshold and 1.0 for anti-aliased edges
-          final range = 1.0 - threshold;
+          // Soft ramp between threshold and 1.0 for anti-aliased edges.
           final factor = range > 0.0 ? ((confidence - threshold) / range).clamp(0.0, 1.0) : 1.0;
           final pixelAlpha = image.getPixel(x, y).a;
           alphas[imgRowOffset + x] = (pixelAlpha * factor).round().clamp(0, 255);

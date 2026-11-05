@@ -141,7 +141,7 @@ final class UserStickersNotifierProvider
 }
 
 String _$userStickersNotifierHash() =>
-    r'28eda820a39f4419eba501dca8ae1d50e2ecb618';
+    r'326c4c9a5e283fe23b39997ac8f805415d2190ba';
 
 /// The user's app-wide "My stickers" library, newest first.
 

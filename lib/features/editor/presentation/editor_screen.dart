@@ -172,7 +172,10 @@ class _EditorWorkspace extends ConsumerWidget {
     try {
       await ref.read(editorCommandsProvider(projectId)).removeBackground(layerId);
     } on BackgroundRemovalException catch (error) {
-      if (context.mounted) _showError(context, error.message);
+      final detail = error.detail;
+      if (context.mounted) {
+        _showError(context, detail == null ? error.message : '${error.message}\nDetails: $detail');
+      }
     } catch (_) {
       if (context.mounted) _showError(context, 'Background removal failed. Please try again.');
     }

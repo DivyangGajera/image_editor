@@ -47,3 +47,11 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // Same artifact and version that google_mlkit_subject_segmentation already
+    // bundles (no new library in the APK). Declared here so MainActivity can ask
+    // Google Play services to install the segmentation model on demand, which
+    // sideloaded installs never get at install time.
+    implementation("com.google.android.gms:play-services-mlkit-subject-segmentation:16.0.0-beta1")
+}

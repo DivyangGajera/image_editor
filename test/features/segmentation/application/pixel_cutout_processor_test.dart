@@ -168,5 +168,24 @@ void main() {
         throwsArgumentError,
       );
     });
+
+    test('scales a smaller mask up smoothly', () {
+      final image = img.Image(width: 8, height: 1, numChannels: 4)
+        ..clear(img.ColorRgba8(10, 20, 30, 255));
+      final out = img.decodePng(PixelCutoutProcessor.execute(CutoutProcessingParams(
+        imageBytes: Uint8List.fromList(img.encodePng(image)),
+        maskConfidences: const [1, 1, 0, 0],
+        maskWidth: 4,
+        maskHeight: 1,
+        confidenceThreshold: 0.5,
+        smoothEdges: false,
+      )))!;
+
+      expect(out.getPixel(0, 0).a, 255);
+      expect(out.getPixel(7, 0).a, 0);
+      // Pixel 3 samples 0.75 between the mask's 1 and 0: half visible, a soft
+      // edge instead of a hard nearest-neighbour step.
+      expect(out.getPixel(3, 0).a, inExclusiveRange(100, 160));
+    });
   });
 }

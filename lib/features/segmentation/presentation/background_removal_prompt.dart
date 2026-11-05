@@ -37,12 +37,14 @@ class _BackgroundRemovalPromptState extends ConsumerState<BackgroundRemovalPromp
   bool _showCutout = false;
   bool _busy = false;
   String? _error;
+  String? _errorDetail;
 
   Future<void> _removeBackground() async {
     final service = ref.read(backgroundRemovalServiceProvider);
     setState(() {
       _busy = true;
       _error = null;
+      _errorDetail = null;
     });
     try {
       final cutout = await service.cutOut(widget.imageBytes);
@@ -52,9 +54,19 @@ class _BackgroundRemovalPromptState extends ConsumerState<BackgroundRemovalPromp
         _showCutout = true;
       });
     } on BackgroundRemovalException catch (error) {
-      if (mounted) setState(() => _error = error.message);
-    } catch (_) {
-      if (mounted) setState(() => _error = 'Background removal failed. Please try again.');
+      if (mounted) {
+        setState(() {
+          _error = error.message;
+          _errorDetail = error.detail;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _error = 'Background removal failed. Please try again.';
+          _errorDetail = error.toString();
+        });
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -126,11 +138,25 @@ class _BackgroundRemovalPromptState extends ConsumerState<BackgroundRemovalPromp
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 0.0),
-                child: Text(
-                  _error!,
-                  key: const ValueKey('prompt_error'),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: colors.error),
+                child: Column(
+                  children: [
+                    Text(
+                      _error!,
+                      key: const ValueKey('prompt_error'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: colors.error),
+                    ),
+                    if (_errorDetail != null) ...[
+                      const SizedBox(height: 4.0),
+                      // Technical cause, so the problem can be reported precisely.
+                      SelectableText(
+                        'Details: $_errorDetail',
+                        key: const ValueKey('prompt_error_detail'),
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             Padding(
