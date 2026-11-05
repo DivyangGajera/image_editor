@@ -70,11 +70,17 @@ void main() {
     expect(restored.isEnabled, isFalse);
   });
 
-  test('importLogo stores the picked image under branding/', () async {
+  Future<String?> importLogo({bool cutout = false}) async {
+    final image = await notifier().pickLogoImage();
+    if (image == null) return null;
+    return notifier().storeLogo(image, cutoutPng: cutout ? png() : null);
+  }
+
+  test('a picked logo is stored under branding/', () async {
     await settings();
     nextLogo = png();
 
-    final path = await notifier().importLogo();
+    final path = await importLogo();
 
     expect(path, startsWith('branding/logo_'));
     expect(path, endsWith('.png'));
@@ -83,19 +89,19 @@ void main() {
 
   test('cancelled or invalid logo picks are handled', () async {
     await settings();
-    expect(await notifier().importLogo(), isNull);
+    expect(await importLogo(), isNull);
 
     nextLogo = Uint8List.fromList(List<int>.filled(16, 3));
-    await expectLater(notifier().importLogo(), throwsA(isA<LogoImportException>()));
+    await expectLater(notifier().pickLogoImage(), throwsA(isA<LogoImportException>()));
   });
 
   test('replacing the logo deletes the previous file', () async {
     await settings();
     nextLogo = png();
-    final first = await notifier().importLogo();
+    final first = await importLogo();
     await notifier().save(const WatermarkConfig(type: WatermarkType.logo).copyWith(logoRelativePath: first));
 
-    final second = await notifier().importLogo();
+    final second = await importLogo(cutout: true);
     await notifier().save((await settings()).copyWith(logoRelativePath: second));
 
     expect((await repository.resolve(first!)).existsSync(), isFalse);

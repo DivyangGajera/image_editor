@@ -70,18 +70,24 @@ class WatermarkSettingsNotifier extends _$WatermarkSettingsNotifier {
     if (ref.mounted) state = AsyncData(remembered);
   }
 
-  /// Lets the user pick a logo image and stores it. Returns the logo's
-  /// app-relative path, or null if cancelled. Call [save] to apply it.
-  Future<String?> importLogo() async {
+  /// Lets the user pick a logo image and prepares it (upright, at most
+  /// [maxLogoDimension] px). Returns null if cancelled; throws
+  /// [LogoImportException] for unreadable images. Store it with [storeLogo].
+  Future<NormalizedImage?> pickLogoImage() async {
     final bytes = await _pickLogo();
     if (bytes == null) return null;
-
-    final NormalizedImage image;
     try {
-      image = await _normalize(bytes);
+      return await _normalize(bytes);
     } on FormatException {
       throw const LogoImportException('This file is not a supported image.');
     }
-    return _repository.saveLogo(image.bytes, image.extension);
+  }
+
+  /// Stores [image], or its background-free [cutoutPng], as a logo file and
+  /// returns its app-relative path. Call [save] to apply it.
+  Future<String> storeLogo(NormalizedImage image, {Uint8List? cutoutPng}) {
+    return cutoutPng != null
+        ? _repository.saveLogo(cutoutPng, 'png')
+        : _repository.saveLogo(image.bytes, image.extension);
   }
 }
