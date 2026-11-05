@@ -68,6 +68,8 @@ Every implementation or code modification must be accompanied by appropriate aut
 ## 7. Version Control & Git Commit Standards
 1. **Commit Every Change**:
    - Make an appropriate Git commit after any and every change or implementation is completed and verified.
+   - Work on short-lived branches off `master` named by type (`feat/*`, `fix/*`, `refactor/*`, `chore/*`, `docs/*`); merge back with `git merge --no-ff` and delete the branch. A bug found while working on something else gets its own `fix/*` branch.
+   - Every commit must build and pass on its own.
 2. **Industry-Standard Commit Format (Conventional Commits)**:
    - Use standard Conventional Commits: `<type>(<scope>): <description>`
    - Types:
