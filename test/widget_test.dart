@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
@@ -11,6 +12,9 @@ import 'package:image_editor/main.dart';
 
 void main() {
   testWidgets('app starts on the project gallery', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 2.75;
+    addTearDown(tester.view.reset);
     late Directory tempDir;
     late ProjectRepository repository;
     await tester.runAsync(() async {
@@ -35,6 +39,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text(AppConstants.appShortName), findsOneWidget);
-    expect(find.text('No projects yet'), findsOneWidget);
+    expect(find.text('What are you making today?'), findsOneWidget);
+    expect(find.text('No designs yet'), findsOneWidget);
   });
 }
