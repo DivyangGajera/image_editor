@@ -189,8 +189,6 @@ void main() {
     when(() => backgroundRemoval.removeBackground(
           sourceImagePath: any(named: 'sourceImagePath'),
           projectId: any(named: 'projectId'),
-          confidenceThreshold: any(named: 'confidenceThreshold'),
-          smoothEdges: any(named: 'smoothEdges'),
         )).thenAnswer(
       (_) async => const ImageLayer(
         id: 'cutout',
@@ -208,8 +206,6 @@ void main() {
     verify(() => backgroundRemoval.removeBackground(
           sourceImagePath: '${tempDir.path}/projects/editor-commands/images/a.jpg',
           projectId: projectId,
-          confidenceThreshold: any(named: 'confidenceThreshold'),
-          smoothEdges: any(named: 'smoothEdges'),
         )).called(1);
   });
 
@@ -222,8 +218,6 @@ void main() {
     verifyNever(() => backgroundRemoval.removeBackground(
           sourceImagePath: any(named: 'sourceImagePath'),
           projectId: any(named: 'projectId'),
-          confidenceThreshold: any(named: 'confidenceThreshold'),
-          smoothEdges: any(named: 'smoothEdges'),
         ));
   });
 

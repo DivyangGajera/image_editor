@@ -45,7 +45,7 @@ final class SegmentationNotifierProvider
 }
 
 String _$segmentationNotifierHash() =>
-    r'e1a9df192a5fdd3ef685fea6c079e9ec7aaa8648';
+    r'bd7cf934a9e9d709620d56b6821980c195c3f8e2';
 
 /// Riverpod notifier managing state and execution of offline background extractions.
 

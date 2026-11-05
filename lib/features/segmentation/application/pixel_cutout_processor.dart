@@ -7,8 +7,8 @@ class CutoutProcessingParams {
   const CutoutProcessingParams({
     required this.imageBytes,
     required this.maskConfidences,
-    required this.maskWidth,
-    required this.maskHeight,
+    this.maskWidth,
+    this.maskHeight,
     this.confidenceThreshold = 0.7,
     this.smoothEdges = true,
   });
@@ -16,20 +16,29 @@ class CutoutProcessingParams {
   /// Raw bytes of source image to decode and segment.
   final Uint8List imageBytes;
 
-  /// Flattened confidence values from ML Kit SelfieSegmenter (0.0 to 1.0).
+  /// Flattened, row-major foreground confidences (0.0 to 1.0).
   final List<double> maskConfidences;
 
-  /// Width of segmentation mask buffer.
-  final int maskWidth;
+  /// Width of the mask, or null when it matches the image (ML Kit Subject
+  /// Segmentation returns a mask the size of the input image).
+  final int? maskWidth;
 
-  /// Height of segmentation mask buffer.
-  final int maskHeight;
+  /// Height of the mask, or null when it matches the image.
+  final int? maskHeight;
 
   /// Minimum confidence threshold to consider a pixel foreground (defaults to 0.7).
   final double confidenceThreshold;
 
   /// Whether to apply alpha edge smoothing to eliminate fringe artifacts.
   final bool smoothEdges;
+}
+
+/// Thrown when the mask contains no foreground at all.
+class NoSubjectFoundException implements Exception {
+  const NoSubjectFoundException();
+
+  @override
+  String toString() => 'NoSubjectFoundException: no foreground subject in the image';
 }
 
 /// Concurrency worker performing raw pixel alpha-blending and contour feathering
@@ -54,9 +63,14 @@ class PixelCutoutProcessor {
 
     final imgWidth = image.width;
     final imgHeight = image.height;
-    final maskW = params.maskWidth;
-    final maskH = params.maskHeight;
+    final maskW = params.maskWidth ?? imgWidth;
+    final maskH = params.maskHeight ?? imgHeight;
     final confidences = params.maskConfidences;
+    if (confidences.length < maskW * maskH) {
+      throw ArgumentError(
+        'Mask has ${confidences.length} values, expected ${maskW * maskH} (${maskW}x$maskH).',
+      );
+    }
     final threshold = params.confidenceThreshold;
 
     // Buffer to hold intermediate alpha values for edge smoothing
@@ -82,6 +96,10 @@ class PixelCutoutProcessor {
           alphas[imgRowOffset + x] = (pixelAlpha * factor).round().clamp(0, 255);
         }
       }
+    }
+
+    if (!alphas.any((alpha) => alpha > 0)) {
+      throw const NoSubjectFoundException();
     }
 
     // 2. Edge smoothing: 3x3 box blur on alpha channel along transition boundaries

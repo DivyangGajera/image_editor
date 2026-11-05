@@ -133,5 +133,40 @@ void main() {
         throwsArgumentError,
       );
     });
+
+    test('uses the image size when no mask size is given', () {
+      final image = img.Image(width: 4, height: 2, numChannels: 4)
+        ..clear(img.ColorRgba8(10, 20, 30, 255));
+      final out = img.decodePng(PixelCutoutProcessor.execute(CutoutProcessingParams(
+        imageBytes: Uint8List.fromList(img.encodePng(image)),
+        maskConfidences: const [1, 1, 0, 0, 1, 1, 0, 0],
+        smoothEdges: false,
+      )))!;
+
+      expect(out.getPixel(0, 0).a, 255);
+      expect(out.getPixel(3, 1).a, 0);
+    });
+
+    test('reports a mask without any foreground', () {
+      final image = img.Image(width: 2, height: 2);
+      expect(
+        () => PixelCutoutProcessor.execute(CutoutProcessingParams(
+          imageBytes: Uint8List.fromList(img.encodePng(image)),
+          maskConfidences: const [0, 0, 0, 0],
+        )),
+        throwsA(isA<NoSubjectFoundException>()),
+      );
+    });
+
+    test('rejects a mask smaller than the image', () {
+      final image = img.Image(width: 2, height: 2);
+      expect(
+        () => PixelCutoutProcessor.execute(CutoutProcessingParams(
+          imageBytes: Uint8List.fromList(img.encodePng(image)),
+          maskConfidences: const [1, 1],
+        )),
+        throwsArgumentError,
+      );
+    });
   });
 }

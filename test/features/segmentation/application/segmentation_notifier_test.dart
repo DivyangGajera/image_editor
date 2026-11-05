@@ -76,8 +76,6 @@ void main() {
         () => mockService.removeBackground(
           sourceImagePath: any(named: 'sourceImagePath'),
           projectId: any(named: 'projectId'),
-          confidenceThreshold: any(named: 'confidenceThreshold'),
-          smoothEdges: any(named: 'smoothEdges'),
         ),
       ).thenAnswer((_) async => expectedLayer);
 
@@ -98,8 +96,6 @@ void main() {
         () => mockService.removeBackground(
           sourceImagePath: any(named: 'sourceImagePath'),
           projectId: any(named: 'projectId'),
-          confidenceThreshold: any(named: 'confidenceThreshold'),
-          smoothEdges: any(named: 'smoothEdges'),
         ),
       ).thenThrow(Exception('ML Kit model execution failed'));
 

@@ -61,27 +61,24 @@ class SegmentationNotifier extends _$SegmentationNotifier {
   Future<ImageLayer?> extractBackground({
     required String sourceImagePath,
     required String projectId,
-    double confidenceThreshold = 0.7,
-    bool smoothEdges = true,
   }) async {
+    final service = ref.read(backgroundRemovalServiceProvider);
     state = const SegmentationState(isProcessing: true);
 
     try {
-      final service = ref.read(backgroundRemovalServiceProvider);
       final layer = await service.removeBackground(
         sourceImagePath: sourceImagePath,
         projectId: projectId,
-        confidenceThreshold: confidenceThreshold,
-        smoothEdges: smoothEdges,
       );
-
-      state = const SegmentationState(isProcessing: false);
+      if (ref.mounted) state = const SegmentationState(isProcessing: false);
       return layer;
     } catch (e) {
-      state = SegmentationState(
-        isProcessing: false,
-        error: e.toString(),
-      );
+      if (ref.mounted) {
+        state = SegmentationState(
+          isProcessing: false,
+          error: e is BackgroundRemovalException ? e.message : e.toString(),
+        );
+      }
       rethrow;
     }
   }
