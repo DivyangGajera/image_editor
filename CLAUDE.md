@@ -65,6 +65,7 @@ Each feature in `lib/features/<feature>/` has a barrel (`<feature>.dart`), and s
 
 ## Background removal (`features/segmentation`)
 - ML Kit **Subject Segmentation** (people, pets, products, cars), not Selfie Segmentation. The model is delivered by Google Play services; the manifest's `com.google.mlkit.vision.DEPENDENCIES=subject_segment` requests it at install time.
+- The model is requested at app start (`SubjectModelInstaller.ensureModel`, via `MainActivity`'s `chitred/ml_models` channel). Before removal, `BackgroundRemoverDownload.ensureReady` checks `isAvailable()`; if missing, it offers the download ("Not now" does nothing), shows byte progress from the `chitred/ml_models/download` event channel (`ModelDownloadNotifier`, internet checked first with `InternetCheck`), then a snackbar asks the user to tap Remove BG again. Editor and prompt bottom bars are `bottomNavigationBar`s so snackbars don't cover them.
 - `BackgroundRemovalService.cutOut(bytes)` returns a transparent PNG. `SubjectMasker` is the seam for tests. `BackgroundRemovalException` carries user-facing messages (no subject; model not ready).
 - Every image import (editor photo, new project from photo, My stickers, watermark logo) is followed by `BackgroundRemovalPrompt`, which returns the cut-out bytes or null to keep the original. Cut-out photos have no `originalImagePath`.
 

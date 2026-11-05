@@ -7,12 +7,19 @@ import 'package:image/image.dart' as img;
 import 'package:image_editor/core/theme/app_theme.dart';
 import 'package:image_editor/features/segmentation/application/background_removal_service.dart';
 import 'package:image_editor/features/segmentation/presentation/background_removal_prompt.dart';
+import 'package:image_editor/core/network/internet_check.dart';
+import 'package:image_editor/features/segmentation/application/subject_model_installer.dart';
 import 'package:mocktail/mocktail.dart';
+
+import '../../../helpers/fake_internet_check.dart';
+import '../../../helpers/fake_subject_model_installer.dart';
 
 class MockBackgroundRemovalService extends Mock implements BackgroundRemovalService {}
 
 void main() {
   late MockBackgroundRemovalService service;
+  late FakeSubjectModelInstaller installer;
+  late FakeInternetCheck internet;
   Uint8List? result;
   var closed = false;
 
@@ -21,13 +28,19 @@ void main() {
 
   setUpAll(() => registerFallbackValue(Uint8List(0)));
 
-  Future<void> openPrompt(WidgetTester tester) async {
+  Future<void> openPrompt(WidgetTester tester, {bool modelInstalled = true}) async {
     service = MockBackgroundRemovalService();
+    installer = FakeSubjectModelInstaller(available: modelInstalled);
+    internet = FakeInternetCheck();
     result = null;
     closed = false;
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [backgroundRemovalServiceProvider.overrideWithValue(service)],
+        overrides: [
+          backgroundRemovalServiceProvider.overrideWithValue(service),
+          subjectModelInstallerProvider.overrideWithValue(installer),
+          internetCheckProvider.overrideWithValue(internet),
+        ],
         child: MaterialApp(
           theme: AppTheme.light(),
           home: Scaffold(
@@ -110,5 +123,84 @@ void main() {
 
     expect(closed, isTrue);
     expect(result, isNull);
+  });
+
+  group('when the background remover is not downloaded yet', () {
+    testWidgets('"Not now" closes the offer and does nothing', (tester) async {
+      await openPrompt(tester, modelInstalled: false);
+
+      await tester.tap(find.byKey(const ValueKey('prompt_remove_background')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('bg_model_offer')), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('bg_model_not_now')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('bg_model_offer')), findsNothing);
+      expect(installer.downloadStarts, 0);
+      expect(internet.checks, 0);
+      verifyNever(() => service.cutOut(any()));
+      expect(closed, isFalse, reason: 'the prompt stays open');
+    });
+
+    testWidgets('Download shows size and progress, then says to tap again', (tester) async {
+      await openPrompt(tester, modelInstalled: false);
+      await tester.tap(find.byKey(const ValueKey('prompt_remove_background')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('bg_model_download')));
+      await tester.pump();
+      await tester.pump();
+      expect(find.byKey(const ValueKey('bg_model_download_dialog')), findsOneWidget);
+
+      installer.downloadController.add(
+        const ModelDownloadProgress(downloadedBytes: 1024 * 1024, totalBytes: 4 * 1024 * 1024),
+      );
+      await tester.pump();
+      expect(find.byKey(const ValueKey('bg_model_progress')), findsOneWidget);
+      expect(find.text('1.0 MB of 4.0 MB'), findsOneWidget);
+      expect(find.text('Downloading… 25%'), findsOneWidget);
+
+      installer.available = true;
+      await installer.downloadController.close();
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('bg_model_download_dialog')), findsNothing);
+      expect(
+        find.text('Background remover is ready. Tap Remove background to cut out this image.'),
+        findsOneWidget,
+      );
+      verifyNever(() => service.cutOut(any()));
+
+      // Tapping again now removes the background.
+      when(() => service.cutOut(any())).thenAnswer((_) async => cutout);
+      await tester.tap(find.byKey(const ValueKey('prompt_remove_background')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('prompt_cutout')), findsOneWidget);
+    });
+
+    testWidgets('offline: asks to turn on the internet, and Retry downloads', (tester) async {
+      await openPrompt(tester, modelInstalled: false);
+      internet.online = false;
+      await tester.tap(find.byKey(const ValueKey('prompt_remove_background')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('bg_model_download')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('bg_model_offline')), findsOneWidget);
+      expect(installer.downloadStarts, 0);
+
+      internet.online = true;
+      await tester.tap(find.byKey(const ValueKey('bg_model_retry')));
+      await tester.pump();
+      await tester.pump();
+      expect(installer.downloadStarts, 1);
+      expect(find.text('Downloading…'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('bg_model_cancel')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('bg_model_download_dialog')), findsNothing);
+      expect(find.byKey(const ValueKey('bg_model_ready')), findsNothing);
+    });
   });
 }
