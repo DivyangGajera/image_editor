@@ -17,6 +17,7 @@ import 'package:image_editor/features/projects/presentation/widgets/project_acti
 import 'package:image_editor/features/segmentation/application/background_removal_service.dart';
 import 'package:image_editor/features/segmentation/application/segmentation_notifier.dart';
 import 'package:image_editor/features/segmentation/presentation/background_removal_prompt.dart';
+import 'package:image_editor/features/segmentation/presentation/background_remover_download.dart';
 import 'package:image_editor/features/segmentation/presentation/widgets/segmentation_progress_bar.dart';
 import 'package:image_editor/features/stickers/presentation/widgets/sticker_picker_sheet.dart';
 import 'package:image_picker/image_picker.dart';
@@ -169,8 +170,15 @@ class _EditorWorkspace extends ConsumerWidget {
   }
 
   Future<void> _removeBackground(BuildContext context, WidgetRef ref, String layerId) async {
+    final commands = ref.read(editorCommandsProvider(projectId));
+    final ready = await BackgroundRemoverDownload.ensureReady(
+      context,
+      ref,
+      readyMessage: 'Background remover is ready. Tap Remove BG to remove the background of the selected image.',
+    );
+    if (!ready || !context.mounted) return;
     try {
-      await ref.read(editorCommandsProvider(projectId)).removeBackground(layerId);
+      await commands.removeBackground(layerId);
     } on BackgroundRemovalException catch (error) {
       final detail = error.detail;
       if (context.mounted) {
@@ -368,11 +376,13 @@ class _EditorWorkspace extends ConsumerWidget {
               ],
             ),
           ),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 180),
-            child: bottomBar,
-          ),
         ],
+      ),
+      // As the bottom navigation bar, snackbars appear above the tools
+      // instead of covering them.
+      bottomNavigationBar: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 180),
+        child: bottomBar,
       ),
     );
   }

@@ -9,6 +9,8 @@ import 'package:image_editor/features/segmentation/application/pixel_cutout_proc
 import 'package:image_editor/features/segmentation/application/subject_model_installer.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../helpers/fake_subject_model_installer.dart';
+
 class MockProjectRepository extends Mock implements ProjectRepository {}
 
 /// Marks the left half of the image as the subject.
@@ -40,21 +42,6 @@ class FixedMasker implements SubjectMasker {
   }
 }
 
-class FakeInstaller implements SubjectModelInstaller {
-  const FakeInstaller(this.status) : failure = null;
-  const FakeInstaller.failing(this.failure) : status = SubjectModelStatus.available;
-
-  final SubjectModelStatus status;
-  final String? failure;
-
-  @override
-  Future<SubjectModelStatus> ensureModel() async {
-    final error = failure;
-    if (error != null) throw SubjectModelException(error);
-    return status;
-  }
-}
-
 void main() {
   late Directory tempDir;
   late MockProjectRepository repository;
@@ -76,12 +63,12 @@ void main() {
 
   BackgroundRemovalService serviceWith(
     SubjectMasker masker, {
-    SubjectModelInstaller installer = const FakeInstaller(SubjectModelStatus.available),
+    SubjectModelInstaller? installer,
   }) =>
       BackgroundRemovalService(
         projectRepository: repository,
         masker: masker,
-        modelInstaller: installer,
+        modelInstaller: installer ?? FakeSubjectModelInstaller(),
         getTempDir: () async => tempDir,
         // Synchronous processing: no isolates in unit tests.
         pixelCutoutProcessor: const SyncCutoutProcessor(),
@@ -127,7 +114,7 @@ void main() {
   test('while Play services downloads the model, the user is told to wait', () async {
     final service = serviceWith(
       LeftHalfMasker(),
-      installer: const FakeInstaller(SubjectModelStatus.installing),
+      installer: FakeSubjectModelInstaller(status: SubjectModelStatus.installing),
     );
 
     await expectLater(
@@ -139,7 +126,7 @@ void main() {
   test('a failed model check does not block background removal', () async {
     final service = serviceWith(
       LeftHalfMasker(),
-      installer: const FakeInstaller.failing('MODEL_CHECK_FAILED: API unavailable'),
+      installer: FakeSubjectModelInstaller(ensureFailure: 'MODEL_CHECK_FAILED: API unavailable'),
     );
 
     final cut = img.decodePng(await service.cutOut(photo()))!;
@@ -151,7 +138,7 @@ void main() {
   test('when the model check and ML Kit both fail, both details are reported', () async {
     final service = serviceWith(
       FixedMasker(Exception('segmenter unavailable')),
-      installer: const FakeInstaller.failing('MODEL_INSTALL_FAILED: no Play services'),
+      installer: FakeSubjectModelInstaller(ensureFailure: 'MODEL_INSTALL_FAILED: no Play services'),
     );
 
     await expectLater(

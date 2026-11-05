@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_editor/features/segmentation/application/background_removal_service.dart';
+import 'package:image_editor/features/segmentation/presentation/background_remover_download.dart';
 
 /// Asks, right after an image is imported, whether to remove its background.
 ///
@@ -41,6 +42,12 @@ class _BackgroundRemovalPromptState extends ConsumerState<BackgroundRemovalPromp
 
   Future<void> _removeBackground() async {
     final service = ref.read(backgroundRemovalServiceProvider);
+    final ready = await BackgroundRemoverDownload.ensureReady(
+      context,
+      ref,
+      readyMessage: 'Background remover is ready. Tap Remove background to cut out this image.',
+    );
+    if (!ready || !mounted) return;
     setState(() {
       _busy = true;
       _error = null;
@@ -159,36 +166,41 @@ class _BackgroundRemovalPromptState extends ConsumerState<BackgroundRemovalPromp
                   ],
                 ),
               ),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      key: const ValueKey('prompt_keep_original'),
-                      onPressed: _busy ? null : () => Navigator.of(context).pop(),
-                      child: const Text('Keep original'),
-                    ),
-                  ),
-                  const SizedBox(width: 12.0),
-                  Expanded(
-                    child: cutout == null
-                        ? FilledButton.icon(
-                            key: const ValueKey('prompt_remove_background'),
-                            onPressed: _busy ? null : _removeBackground,
-                            icon: const Icon(Icons.auto_fix_high_rounded),
-                            label: const Text('Remove background'),
-                          )
-                        : FilledButton(
-                            key: const ValueKey('prompt_use_cutout'),
-                            onPressed: () => Navigator.of(context).pop(cutout),
-                            child: const Text('Use cut-out'),
-                          ),
-                  ),
-                ],
-              ),
-            ),
           ],
+        ),
+      ),
+      // As the bottom navigation bar, snackbars appear above the buttons
+      // instead of covering them.
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  key: const ValueKey('prompt_keep_original'),
+                  onPressed: _busy ? null : () => Navigator.of(context).pop(),
+                  child: const Text('Keep original'),
+                ),
+              ),
+              const SizedBox(width: 12.0),
+              Expanded(
+                child: cutout == null
+                    ? FilledButton.icon(
+                        key: const ValueKey('prompt_remove_background'),
+                        onPressed: _busy ? null : _removeBackground,
+                        icon: const Icon(Icons.auto_fix_high_rounded),
+                        label: const Text('Remove background'),
+                      )
+                    : FilledButton(
+                        key: const ValueKey('prompt_use_cutout'),
+                        onPressed: () => Navigator.of(context).pop(cutout),
+                        child: const Text('Use cut-out'),
+                      ),
+              ),
+            ],
+          ),
         ),
       ),
     );

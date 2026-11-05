@@ -10,8 +10,12 @@ import 'package:image_editor/core/theme/app_theme.dart';
 import 'package:image_editor/features/canvas/canvas.dart';
 import 'package:image_editor/features/editor/editor.dart';
 import 'package:image_editor/features/history/history.dart';
+import 'package:image_editor/core/network/internet_check.dart';
 import 'package:image_editor/features/layers/domain/models/models.dart';
+import 'package:image_editor/features/segmentation/application/subject_model_installer.dart';
 
+import '../../../helpers/fake_internet_check.dart';
+import '../../../helpers/fake_subject_model_installer.dart';
 import '../../../helpers/pump_until.dart';
 
 void main() {
@@ -19,6 +23,7 @@ void main() {
   late ProjectRepository repository;
   late HistoryManager historyManager;
   late ProviderContainer container;
+  late FakeSubjectModelInstaller installer;
 
   const projectId = 'editor-screen';
 
@@ -48,10 +53,13 @@ void main() {
     );
     // Real Hive I/O cannot complete inside the widget-test fake-async zone.
     await historyManager.load();
+    installer = FakeSubjectModelInstaller();
     container = ProviderContainer(
       overrides: [
         projectRepositoryProvider.overrideWithValue(repository),
         historyManagerProvider(projectId).overrideWithValue(historyManager),
+        subjectModelInstallerProvider.overrideWithValue(installer),
+        internetCheckProvider.overrideWithValue(FakeInternetCheck()),
       ],
     );
   }
@@ -187,6 +195,25 @@ void main() {
       tester,
       () => (canvas().project.layers.first as ImageLayer).activeFilter == null,
     );
+  });
+
+  testWidgets('Remove BG offers the model download first, and "Not now" changes nothing',
+      (tester) async {
+    await tester.runAsync(() => createProject(const [photo, caption]));
+    await pumpEditor(tester);
+    installer.available = false;
+    container.read(canvasProvider(projectId).notifier).selectLayer('photo');
+    await tester.pumpAndSettle();
+    final before = canvas().project.layers;
+
+    await tapAndSettle(tester, find.byKey(const ValueKey('ctx_remove_bg')));
+    expect(find.text('Download background remover?'), findsOneWidget);
+
+    await tapAndSettle(tester, find.byKey(const ValueKey('bg_model_not_now')));
+    expect(find.text('Download background remover?'), findsNothing);
+    expect(installer.downloadStarts, 0);
+    expect(canvas().project.layers, before);
+    expect(find.byKey(const ValueKey('ctx_remove_bg')), findsOneWidget);
   });
 
   testWidgets('a cropped photo offers Uncrop, which restores the original', (tester) async {
