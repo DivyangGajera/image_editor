@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Paper: the app background, also behind the launch splash. -->
+    <color name="splash_background">#FFF8F1</color>
+    <!-- Deep saffron: brand color behind the splash icon on Android 12+. -->
+    <color name="splash_icon_background">#C2410C</color>
+</resources>
