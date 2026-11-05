@@ -246,6 +246,7 @@ class _EditorWorkspace extends ConsumerWidget {
           canvasNotifier.selectLayer(null);
         },
         onDuplicate: () => canvasNotifier.duplicateLayer(layer.id),
+        onToggleLock: () => canvasNotifier.toggleLock(layer.id),
         onBringToFront: () => canvasNotifier.bringToFront(layer.id),
         onSendToBack: () => canvasNotifier.sendToBack(layer.id),
         onDelete: () {

@@ -15,6 +15,7 @@ abstract class CanvasLayer {
     this.rotation = 0.0,
     this.zIndex = 0,
     this.isVisible = true,
+    this.isLocked = false,
   });
 
   /// Unique identifier for this layer.
@@ -45,6 +46,12 @@ abstract class CanvasLayer {
   @HiveField(6)
   final bool isVisible;
 
+  /// Whether the layer is locked against accidental moving, resizing and
+  /// rotating on the canvas. Index 30 sits clear of every subclass's own
+  /// fields (7–17); never reuse it.
+  @HiveField(30, defaultValue: false)
+  final bool isLocked;
+
   /// Returns an immutable copy of this layer with the given base fields replaced.
   ///
   /// Every subclass overrides this with its own type-specific fields added, so
@@ -57,5 +64,6 @@ abstract class CanvasLayer {
     double? rotation,
     int? zIndex,
     bool? isVisible,
+    bool? isLocked,
   });
 }

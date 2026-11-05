@@ -16,6 +16,7 @@ class StickerLayer extends CanvasLayer {
     super.rotation = 0.0,
     super.zIndex = 0,
     super.isVisible = true,
+    super.isLocked = false,
     required this.assetPath,
     this.relativeFilePath,
   });
@@ -43,6 +44,7 @@ class StickerLayer extends CanvasLayer {
     double? rotation,
     int? zIndex,
     bool? isVisible,
+    bool? isLocked,
     String? assetPath,
     String? relativeFilePath,
   }) {
@@ -54,6 +56,7 @@ class StickerLayer extends CanvasLayer {
       rotation: rotation ?? this.rotation,
       zIndex: zIndex ?? this.zIndex,
       isVisible: isVisible ?? this.isVisible,
+      isLocked: isLocked ?? this.isLocked,
       assetPath: assetPath ?? this.assetPath,
       relativeFilePath: relativeFilePath ?? this.relativeFilePath,
     );
@@ -70,6 +73,7 @@ class StickerLayer extends CanvasLayer {
         other.rotation == rotation &&
         other.zIndex == zIndex &&
         other.isVisible == isVisible &&
+        other.isLocked == isLocked &&
         other.assetPath == assetPath &&
         other.relativeFilePath == relativeFilePath;
   }
@@ -83,6 +87,7 @@ class StickerLayer extends CanvasLayer {
         rotation,
         zIndex,
         isVisible,
+        isLocked,
         assetPath,
         relativeFilePath,
       );
@@ -90,5 +95,5 @@ class StickerLayer extends CanvasLayer {
   @override
   String toString() =>
       'StickerLayer(id: $id, assetPath: $assetPath, file: $relativeFilePath, x: $x, y: $y, '
-      'scale: $scale, rotation: $rotation, zIndex: $zIndex, isVisible: $isVisible)';
+      'scale: $scale, rotation: $rotation, zIndex: $zIndex, isVisible: $isVisible, isLocked: $isLocked)';
 }

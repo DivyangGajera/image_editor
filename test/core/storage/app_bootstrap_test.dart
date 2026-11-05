@@ -68,6 +68,7 @@ void main() {
           y: 0.1,
           zIndex: 1,
           text: 'Sale',
+          isLocked: true,
           fontFamily: 'Poppins',
           isBold: true,
           boxColorValue: 0xCC000000,

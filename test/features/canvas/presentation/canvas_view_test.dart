@@ -255,6 +255,39 @@ void main() {
       expect(layerY(), 0.3);
     });
 
+    testWidgets('a locked layer can be selected but not dragged, and shows a lock badge', (tester) async {
+      final container = ProviderContainer(
+        overrides: [
+          projectRepositoryProvider.overrideWithValue(projectRepository),
+          historyManagerProvider(project.id).overrideWithValue(historyManager),
+        ],
+      );
+      addTearDown(container.dispose);
+      tester.view.physicalSize = const Size(800, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(createTestApp(container));
+      await tester.pumpAndSettle();
+      final notifier = container.read(canvasProvider(project.id).notifier);
+      final firstId = notifier.currentState.project.layers.first.id;
+      await tester.runAsync(() => notifier.toggleLock(firstId));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Title Heading'));
+      await tester.pumpAndSettle();
+      expect(container.read(canvasProvider(project.id)).requireValue.selectedLayerId, firstId);
+      expect(find.byKey(const ValueKey('locked_badge')), findsOneWidget);
+      expect(find.byKey(const ValueKey('rotate_scale_handle')), findsNothing);
+      expect(find.bySemanticsLabel('Delete Layer'), findsNothing);
+
+      await tester.drag(find.text('Title Heading'), const Offset(120, 60));
+      await tester.pumpAndSettle();
+      final layer = container.read(canvasProvider(project.id)).requireValue.project.layers.first;
+      expect(layer.x, 0.5);
+      expect(layer.y, 0.3);
+    });
+
     testWidgets('hidden layers are not rendered', (tester) async {
       final container = ProviderContainer(
         overrides: [

@@ -24,6 +24,7 @@ class ImageLayerAdapter extends TypeAdapter<ImageLayer> {
       rotation: fields[4] == null ? 0.0 : (fields[4] as num).toDouble(),
       zIndex: fields[5] == null ? 0 : (fields[5] as num).toInt(),
       isVisible: fields[6] == null ? true : fields[6] as bool,
+      isLocked: fields[30] == null ? false : fields[30] as bool,
       relativeImagePath: fields[7] as String,
       isFlippedHorizontally: fields[8] == null ? false : fields[8] as bool,
       activeFilter: fields[9] as String?,
@@ -34,7 +35,7 @@ class ImageLayerAdapter extends TypeAdapter<ImageLayer> {
   @override
   void write(BinaryWriter writer, ImageLayer obj) {
     writer
-      ..writeByte(11)
+      ..writeByte(12)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -56,7 +57,9 @@ class ImageLayerAdapter extends TypeAdapter<ImageLayer> {
       ..writeByte(9)
       ..write(obj.activeFilter)
       ..writeByte(11)
-      ..write(obj.originalImagePath);
+      ..write(obj.originalImagePath)
+      ..writeByte(30)
+      ..write(obj.isLocked);
   }
 
   @override
