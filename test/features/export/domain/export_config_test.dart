@@ -9,7 +9,8 @@ void main() {
       expect(config.isEnabled, isFalse);
       expect(config.type, equals(WatermarkType.text));
       expect(config.text, equals('Chitred'));
-      expect(config.logoAssetOrFilePath, isNull);
+      expect(config.logoRelativePath, isNull);
+      expect(config.isReady, isTrue);
       expect(config.position, equals(WatermarkPosition.bottomRight));
       expect(config.opacity, equals(0.75));
       expect(config.fontSize, equals(24.0));
@@ -102,6 +103,42 @@ void main() {
     test('ExportConfig.outputSize delegates to its tier', () {
       const config = ExportConfig(resolution: ExportResolution.twoK);
       expect(config.outputSize(const Size(1080, 1080)), const Size(2560, 2560));
+    });
+  });
+
+  group('WatermarkConfig persistence', () {
+    test('toMap/fromMap round-trips everything except the per-export switch', () {
+      const config = WatermarkConfig(
+        isEnabled: true,
+        type: WatermarkType.logo,
+        text: 'Shop',
+        logoRelativePath: 'branding/logo_1.png',
+        position: WatermarkPosition.tiled,
+        opacity: 0.4,
+        fontSize: 32.0,
+        colorValue: 0xFF000000,
+      );
+
+      final restored = WatermarkConfig.fromMap(config.toMap());
+
+      expect(restored, config.copyWith(isEnabled: false));
+    });
+
+    test('fromMap falls back to defaults for missing or unknown values', () {
+      final restored = WatermarkConfig.fromMap(<String, Object?>{
+        'type': 'hologram',
+        'position': 42,
+      });
+      expect(restored, const WatermarkConfig());
+    });
+
+    test('isReady needs text for text watermarks and a file for logos', () {
+      expect(const WatermarkConfig(text: '  ').isReady, isFalse);
+      expect(const WatermarkConfig(type: WatermarkType.logo).isReady, isFalse);
+      expect(
+        const WatermarkConfig(type: WatermarkType.logo, logoRelativePath: 'branding/l.png').isReady,
+        isTrue,
+      );
     });
   });
 }

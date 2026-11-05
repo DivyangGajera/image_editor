@@ -8,15 +8,15 @@ part of 'export_notifier.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Riverpod notifier coordinating headless export jobs and local gallery persistence.
+/// Renders a project and saves it to the gallery's app album.
 
 @ProviderFor(ExportNotifier)
 final exportProvider = ExportNotifierProvider._();
 
-/// Riverpod notifier coordinating headless export jobs and local gallery persistence.
+/// Renders a project and saves it to the gallery's app album.
 final class ExportNotifierProvider
     extends $NotifierProvider<ExportNotifier, ExportState> {
-  /// Riverpod notifier coordinating headless export jobs and local gallery persistence.
+  /// Renders a project and saves it to the gallery's app album.
   ExportNotifierProvider._()
     : super(
         from: null,
@@ -44,9 +44,9 @@ final class ExportNotifierProvider
   }
 }
 
-String _$exportNotifierHash() => r'20d5875df9e1e51beb7f6d81200b527abbea5cd3';
+String _$exportNotifierHash() => r'e34f1a4f8b40d0a1007e47306928135bf595b53b';
 
-/// Riverpod notifier coordinating headless export jobs and local gallery persistence.
+/// Renders a project and saves it to the gallery's app album.
 
 abstract class _$ExportNotifier extends $Notifier<ExportState> {
   ExportState build();

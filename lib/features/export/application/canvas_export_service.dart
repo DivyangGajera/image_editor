@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:isolate';
 import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
@@ -29,8 +28,16 @@ class CanvasExportService {
   CanvasExportService({
     required this.projectRepository,
     this.installedFontFamilies,
-    this.picturesDirectoryProvider,
-  });
+    Future<File> Function(String relativePath)? resolveAppFile,
+  }) : _resolveAppFile = resolveAppFile ?? _resolveInDocuments;
+
+  /// Resolves app-relative paths (e.g. the watermark logo) to files.
+  final Future<File> Function(String relativePath) _resolveAppFile;
+
+  static Future<File> _resolveInDocuments(String relativePath) async {
+    final documents = await getApplicationDocumentsDirectory();
+    return File(p.join(documents.path, relativePath));
+  }
 
   final ProjectRepository projectRepository;
 
@@ -39,8 +46,6 @@ class CanvasExportService {
   /// applies every family as-is.
   final Set<String>? Function()? installedFontFamilies;
 
-  /// Optional directory provider override for testing.
-  final Future<Directory> Function()? picturesDirectoryProvider;
 
   /// Renders [project] at the size given by [config]'s resolution tier
   /// (always the canvas aspect ratio), applies the watermark if enabled, and
@@ -140,41 +145,6 @@ class CanvasExportService {
     }
 
     return pngBytes;
-  }
-
-  /// Saves exported image bytes into the system pictures or documents directory.
-  Future<String> saveExportToGallery({
-    required Uint8List bytes,
-    required String filename,
-  }) async {
-    final Directory baseDir;
-    if (picturesDirectoryProvider != null) {
-      baseDir = await picturesDirectoryProvider!();
-    } else {
-      Directory? picturesDir;
-      try {
-        if (!kIsWeb && Platform.isAndroid) {
-          final dirs = await getExternalStorageDirectories(
-            type: StorageDirectory.pictures,
-          );
-          if (dirs != null && dirs.isNotEmpty) {
-            picturesDir = dirs.first;
-          }
-        }
-      } catch (_) {
-        picturesDir = null;
-      }
-      baseDir = picturesDir ?? await getApplicationDocumentsDirectory();
-    }
-
-    final exportDir = Directory(p.join(baseDir.path, 'Exports'));
-    if (!await exportDir.exists()) {
-      await exportDir.create(recursive: true);
-    }
-
-    final targetFile = File(p.join(exportDir.path, filename));
-    await targetFile.writeAsBytes(bytes, flush: true);
-    return targetFile.path;
   }
 
   Future<void> _drawImageLayer(Canvas canvas, ImageLayer layer) async {
@@ -294,18 +264,11 @@ class CanvasExportService {
       return;
     }
 
-    final logoPath = watermark.logoAssetOrFilePath;
+    final logoPath = watermark.logoRelativePath;
     if (logoPath == null) return;
 
     try {
-      final file = File(logoPath);
-      final Uint8List logoBytes;
-      if (await file.exists()) {
-        logoBytes = await file.readAsBytes();
-      } else {
-        logoBytes = (await rootBundle.load(logoPath)).buffer.asUint8List();
-      }
-
+      final logoBytes = await (await _resolveAppFile(logoPath)).readAsBytes();
       final logo = await _decodeImageBytes(logoBytes);
       if (logo == null) return;
 

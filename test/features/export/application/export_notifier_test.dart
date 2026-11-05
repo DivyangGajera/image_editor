@@ -2,158 +2,111 @@ import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:image_editor/features/canvas/domain/models/models.dart';
-import 'package:image_editor/features/export/application/canvas_export_service.dart';
-import 'package:image_editor/features/export/application/export_notifier.dart';
+import 'package:image_editor/features/canvas/domain/models/project_model.dart';
+import 'package:image_editor/features/export/application/application.dart';
 import 'package:image_editor/features/export/domain/models/models.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockCanvasExportService extends Mock implements CanvasExportService {}
 
-class FakeProjectModel extends Fake implements ProjectModel {}
+class FakeGallery implements GallerySaver {
+  final List<(Uint8List, String)> saved = [];
+  GallerySaveException? failWith;
+
+  @override
+  Future<void> save(Uint8List bytes, {required String name}) async {
+    if (failWith != null) throw failWith!;
+    saved.add((bytes, name));
+  }
+
+  @override
+  Future<void> openGallery() async {}
+}
+
+class FakeProject extends Fake implements ProjectModel {}
 
 class FakeExportConfig extends Fake implements ExportConfig {}
 
 void main() {
+  late MockCanvasExportService service;
+  late FakeGallery gallery;
+  late ProviderContainer container;
+
+  final project = ProjectModel(
+    id: 'p',
+    title: 'Sale',
+    createdAt: DateTime(2026),
+    updatedAt: DateTime(2026),
+  );
+  final png = Uint8List.fromList([0x89, 0x50, 0x4E, 0x47]);
+
   setUpAll(() {
-    registerFallbackValue(FakeProjectModel());
+    registerFallbackValue(FakeProject());
     registerFallbackValue(FakeExportConfig());
-    registerFallbackValue(Uint8List(0));
   });
 
-  group('ExportState', () {
-    test('default state initialization', () {
-      const state = ExportState();
-      expect(state.isExporting, isFalse);
-      expect(state.progress, isNull);
-      expect(state.exportedFilePath, isNull);
-      expect(state.exportedBytes, isNull);
-      expect(state.error, isNull);
-    });
-
-    test('copyWith works correctly with overrides and clear flags', () {
-      const state = ExportState();
-      final updated = state.copyWith(
-        isExporting: true,
-        progress: 0.5,
-        exportedFilePath: '/exports/img.png',
-        exportedBytes: Uint8List.fromList([1, 2, 3]),
-        error: 'err',
-      );
-
-      expect(updated.isExporting, isTrue);
-      expect(updated.progress, equals(0.5));
-      expect(updated.exportedFilePath, equals('/exports/img.png'));
-      expect(updated.exportedBytes, equals([1, 2, 3]));
-      expect(updated.error, equals('err'));
-
-      final cleared = updated.copyWith(
-        clearExport: true,
-        clearError: true,
-      );
-
-      expect(cleared.exportedFilePath, isNull);
-      expect(cleared.exportedBytes, isNull);
-      expect(cleared.error, isNull);
-      expect(cleared.isExporting, isTrue);
-    });
+  setUp(() {
+    service = MockCanvasExportService();
+    gallery = FakeGallery();
+    container = ProviderContainer(
+      overrides: [
+        canvasExportServiceProvider.overrideWithValue(service),
+        gallerySaverProvider.overrideWithValue(gallery),
+      ],
+    );
   });
 
-  group('ExportNotifier', () {
-    late MockCanvasExportService mockService;
-    late ProviderContainer container;
+  tearDown(() => container.dispose());
 
-    setUp(() {
-      mockService = MockCanvasExportService();
-      container = ProviderContainer(
-        overrides: [
-          canvasExportServiceProvider.overrideWithValue(mockService),
-        ],
-      );
-    });
+  ExportNotifier notifier() => container.read(exportProvider.notifier);
 
-    tearDown(() {
-      container.dispose();
-    });
+  test('renders with the given config and saves into the gallery', () async {
+    const config = ExportConfig(
+      resolution: ExportResolution.fourK,
+      watermark: WatermarkConfig(isEnabled: true),
+    );
+    when(() => service.renderCanvasToBytes(project: any(named: 'project'), config: any(named: 'config')))
+        .thenAnswer((_) async => png);
 
-    test('exportProject executes render and save successfully', () async {
-      final project = ProjectModel(
-        id: 'p1',
-        title: 'Project 1',
-        canvasWidth: 500,
-        canvasHeight: 500,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
+    final ok = await notifier().exportProject(project: project, config: config);
 
-      const config = ExportConfig(format: ExportFormat.png);
-      final fakeBytes = Uint8List.fromList([10, 20, 30]);
+    expect(ok, isTrue);
+    verify(() => service.renderCanvasToBytes(project: project, config: config)).called(1);
+    expect(gallery.saved.single.$1, png);
+    expect(gallery.saved.single.$2, startsWith('Chitred_'));
+    expect(container.read(exportProvider).exportedBytes, png);
+    expect(container.read(exportProvider).isExporting, isFalse);
+  });
 
-      when(() => mockService.renderCanvasToBytes(
-            project: any(named: 'project'),
-            config: any(named: 'config'),
-          )).thenAnswer((_) async => fakeBytes);
+  test('a gallery failure surfaces its user-facing message', () async {
+    when(() => service.renderCanvasToBytes(project: any(named: 'project'), config: any(named: 'config')))
+        .thenAnswer((_) async => png);
+    gallery.failWith = const GallerySaveException('Allow access to photos.');
 
-      when(() => mockService.saveExportToGallery(
-            bytes: any(named: 'bytes'),
-            filename: any(named: 'filename'),
-          )).thenAnswer((_) async => '/storage/Exports/p1.png');
+    expect(await notifier().exportProject(project: project, config: const ExportConfig()), isFalse);
+    expect(container.read(exportProvider).error, 'Allow access to photos.');
+  });
 
-      final result = await container
-          .read(exportProvider.notifier)
-          .exportProject(project: project, config: config, filename: 'p1.png');
+  test('a rendering failure reports a generic message', () async {
+    when(() => service.renderCanvasToBytes(project: any(named: 'project'), config: any(named: 'config')))
+        .thenThrow(StateError('boom'));
 
-      expect(result, equals('/storage/Exports/p1.png'));
+    expect(await notifier().exportProject(project: project, config: const ExportConfig()), isFalse);
+    expect(container.read(exportProvider).error, contains('could not be created'));
+    expect(gallery.saved, isEmpty);
+  });
 
-      final state = container.read(exportProvider);
-      expect(state.isExporting, isFalse);
-      expect(state.exportedFilePath, equals('/storage/Exports/p1.png'));
-      expect(state.exportedBytes, equals(fakeBytes));
-      expect(state.error, isNull);
+  test('file names are timestamped under the app name', () {
+    expect(ExportNotifier.fileNameFor(DateTime(2026, 11, 5, 9, 3, 7)), 'Chitred_20261105_090307');
+  });
 
-      verify(() => mockService.renderCanvasToBytes(
-            project: project,
-            config: config,
-          )).called(1);
+  test('clear resets the state', () async {
+    when(() => service.renderCanvasToBytes(project: any(named: 'project'), config: any(named: 'config')))
+        .thenAnswer((_) async => png);
+    await notifier().exportProject(project: project, config: const ExportConfig());
 
-      verify(() => mockService.saveExportToGallery(
-            bytes: fakeBytes,
-            filename: 'p1.png',
-          )).called(1);
-    });
+    notifier().clear();
 
-    test('exportProject updates error state when service throws', () async {
-      final project = ProjectModel(
-        id: 'p_err',
-        title: 'Error Project',
-        canvasWidth: 100,
-        canvasHeight: 100,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-
-      when(() => mockService.renderCanvasToBytes(
-            project: any(named: 'project'),
-            config: any(named: 'config'),
-          )).thenThrow(Exception('GPU render timeout'));
-
-      expect(
-        () => container.read(exportProvider.notifier).exportProject(
-              project: project,
-              config: const ExportConfig(),
-            ),
-        throwsA(isA<Exception>()),
-      );
-
-      final state = container.read(exportProvider);
-      expect(state.isExporting, isFalse);
-      expect(state.error, contains('GPU render timeout'));
-    });
-
-    test('clear resets state to default', () {
-      final notifier = container.read(exportProvider.notifier);
-      notifier.clear();
-      expect(container.read(exportProvider), equals(const ExportState()));
-    });
+    expect(container.read(exportProvider), const ExportState());
   });
 }

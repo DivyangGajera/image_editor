@@ -6,14 +6,22 @@
     <!-- Modern media permissions for Android 13+ (API level 33+) -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
-    <!-- Legacy read permission for devices running Android 12 and below (API <= 32).
-         Writing exports goes through MediaStore, which needs no write permission. -->
+    <!-- Legacy read permission for devices running Android 12 and below (API <= 32). -->
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
 
+    <!-- Saving exports to the Gallery (gal) needs write access on Android 9 and
+         below; from Android 10 MediaStore needs no permission. -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
+
+    <!-- requestLegacyExternalStorage lets gal save into the "Chitred" album on
+         Android 10 (API 29); it is ignored on newer versions. -->
     <application
         android:label="Chitred"
+        android:requestLegacyExternalStorage="true"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

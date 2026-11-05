@@ -29,6 +29,12 @@ abstract final class StorageKeys {
 
   /// App-wide directory (inside the documents directory) for user stickers.
   static const String userStickersDirectory = 'stickers';
+
+  /// Box storing app settings as plain values (e.g. the brand watermark).
+  static const String settingsBox = 'settings_box';
+
+  /// App-wide directory (inside the documents directory) for the brand logo.
+  static const String brandingDirectory = 'branding';
 }
 
 /// Registry of every Hive `typeId` used by the app.
