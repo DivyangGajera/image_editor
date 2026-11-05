@@ -3,11 +3,23 @@ import 'package:image_editor/features/editor/presentation/widgets/tool_button.da
 import 'package:image_editor/features/images/presentation/widgets/filter_selector_bar.dart';
 import 'package:image_editor/features/layers/domain/models/models.dart';
 
-/// Shared shell for the editor's bottom bars: surface color, top divider and a
-/// horizontally scrollable row of tools.
-class _BarShell extends StatelessWidget {
-  const _BarShell({required this.children, this.top, this.leading});
+/// Undo, Redo and Layers: shown first in every editor tool row, so they are
+/// always one tap away whatever the user is doing.
+class EditorQuickActions {
+  const EditorQuickActions({required this.onUndo, required this.onRedo, required this.onLayers});
 
+  /// Null disables the button (nothing to undo / redo).
+  final VoidCallback? onUndo;
+  final VoidCallback? onRedo;
+  final VoidCallback onLayers;
+}
+
+/// Shared shell for the editor's bottom bars: surface color, top divider and a
+/// horizontally scrollable row that starts with the [EditorQuickActions].
+class _BarShell extends StatelessWidget {
+  const _BarShell({required this.quick, required this.children, this.top, this.leading});
+
+  final EditorQuickActions quick;
   final List<Widget> children;
   final Widget? top;
   final Widget? leading;
@@ -43,9 +55,36 @@ class _BarShell extends StatelessWidget {
                   ],
                   Expanded(
                     child: SingleChildScrollView(
+                      key: const ValueKey('editor_tool_row'),
                       scrollDirection: Axis.horizontal,
                       padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                      child: Row(children: children),
+                      child: Row(
+                        children: [
+                          ToolButton(
+                            key: const ValueKey('editor_undo'),
+                            icon: Icons.undo_rounded,
+                            label: 'Undo',
+                            onPressed: quick.onUndo,
+                          ),
+                          ToolButton(
+                            key: const ValueKey('editor_redo'),
+                            icon: Icons.redo_rounded,
+                            label: 'Redo',
+                            onPressed: quick.onRedo,
+                          ),
+                          ToolButton(
+                            key: const ValueKey('editor_layers'),
+                            icon: Icons.layers_outlined,
+                            label: 'Layers',
+                            onPressed: quick.onLayers,
+                          ),
+                          SizedBox(
+                            height: 40.0,
+                            child: VerticalDivider(color: colors.outlineVariant, width: 16.0),
+                          ),
+                          ...children,
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -62,6 +101,7 @@ class _BarShell extends StatelessWidget {
 class MainToolBar extends StatelessWidget {
   const MainToolBar({
     super.key,
+    required this.quick,
     required this.onAddPhoto,
     required this.onAddText,
     required this.onAddSticker,
@@ -69,6 +109,7 @@ class MainToolBar extends StatelessWidget {
     required this.onBackground,
   });
 
+  final EditorQuickActions quick;
   final VoidCallback? onBackground;
   final VoidCallback? onAddPhoto;
   final VoidCallback? onAddText;
@@ -78,6 +119,7 @@ class MainToolBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _BarShell(
+      quick: quick,
       children: [
         ToolButton(
           key: const ValueKey('tool_photo'),
@@ -118,6 +160,7 @@ class MainToolBar extends StatelessWidget {
 class LayerContextBar extends StatelessWidget {
   const LayerContextBar({
     super.key,
+    required this.quick,
     required this.layer,
     required this.isFilterStripOpen,
     required this.isBusy,
@@ -135,6 +178,7 @@ class LayerContextBar extends StatelessWidget {
     required this.onResetCrop,
   });
 
+  final EditorQuickActions quick;
   final CanvasLayer layer;
   final bool isFilterStripOpen;
 
@@ -202,6 +246,7 @@ class LayerContextBar extends StatelessWidget {
     ];
 
     return _BarShell(
+      quick: quick,
       top: current is ImageLayer && isFilterStripOpen
           ? FilterSelectorBar(
               selectedFilterId: current.activeFilter,
@@ -250,6 +295,7 @@ class LayerContextBar extends StatelessWidget {
 class DrawToolBar extends StatelessWidget {
   const DrawToolBar({
     super.key,
+    required this.quick,
     required this.colorValue,
     required this.strokeWidth,
     required this.minStrokeWidth,
@@ -275,6 +321,7 @@ class DrawToolBar extends StatelessWidget {
     0xFF111827,
   ];
 
+  final EditorQuickActions quick;
   final int colorValue;
   final double strokeWidth;
   final double minStrokeWidth;
@@ -290,6 +337,7 @@ class DrawToolBar extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
 
     return _BarShell(
+      quick: quick,
       top: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0),
         child: Row(
