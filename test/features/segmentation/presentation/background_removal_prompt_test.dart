@@ -167,7 +167,7 @@ void main() {
 
       expect(find.byKey(const ValueKey('bg_model_download_dialog')), findsNothing);
       expect(
-        find.text('Background remover is ready. Tap Remove background to cut out this image.'),
+        find.text('Background remover is ready. Tap Remove BG to cut out this image.'),
         findsOneWidget,
       );
       verifyNever(() => service.cutOut(any()));

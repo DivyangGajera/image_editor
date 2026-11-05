@@ -45,7 +45,7 @@ class _BackgroundRemovalPromptState extends ConsumerState<BackgroundRemovalPromp
     final ready = await BackgroundRemoverDownload.ensureReady(
       context,
       ref,
-      readyMessage: 'Background remover is ready. Tap Remove background to cut out this image.',
+      readyMessage: 'Background remover is ready. Tap Remove BG to cut out this image.',
     );
     if (!ready || !mounted) return;
     setState(() {
@@ -191,7 +191,7 @@ class _BackgroundRemovalPromptState extends ConsumerState<BackgroundRemovalPromp
                         key: const ValueKey('prompt_remove_background'),
                         onPressed: _busy ? null : _removeBackground,
                         icon: const Icon(Icons.auto_fix_high_rounded),
-                        label: const Text('Remove background'),
+                        label: const Text('Remove BG'),
                       )
                     : FilledButton(
                         key: const ValueKey('prompt_use_cutout'),

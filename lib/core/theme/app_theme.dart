@@ -201,7 +201,11 @@ abstract final class AppTheme {
 
   /// Poppins for display, headline and title styles; Inter for the rest.
   static TextTheme _textTheme(ColorScheme colors) {
-    final base = Typography.material2021(platform: TargetPlatform.android).black.apply(
+    // `black` only carries colors; sizes and weights come from `englishLike`.
+    // Both are needed, because these styles are also handed straight to
+    // component themes (app bar titles, buttons, chips).
+    final typography = Typography.material2021(platform: TargetPlatform.android);
+    final base = typography.englishLike.merge(typography.black).apply(
           fontFamily: textFont,
           bodyColor: colors.onSurface,
           displayColor: colors.onSurface,
