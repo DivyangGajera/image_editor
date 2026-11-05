@@ -366,6 +366,70 @@ void main() {
       expect(outside.g, greaterThan(200), reason: 'rest of the canvas stays white');
     });
 
+    test('the logo size follows its scale setting', () async {
+      final logo = img.Image(width: 50, height: 50)..clear(img.ColorRgba8(255, 0, 0, 255));
+      final logoFile = File('${tempDir.path}/branding/logo.png');
+      await logoFile.parent.create(recursive: true);
+      await logoFile.writeAsBytes(img.encodePng(logo));
+      final service = CanvasExportService(
+        projectRepository: mockRepo,
+        resolveAppFile: (relative) async => File('${tempDir.path}/$relative'),
+      );
+      final project = ProjectModel(
+        id: 'logo_scale',
+        title: 'Logo',
+        canvasWidth: 200.0,
+        canvasHeight: 200.0,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      final out = img.decodePng(
+        await service.renderAtSize(
+          project: project,
+          outputSize: const Size(200, 200),
+          watermark: const WatermarkConfig(
+            isEnabled: true,
+            type: WatermarkType.logo,
+            logoRelativePath: 'branding/logo.png',
+            logoScale: 0.5,
+            opacity: 1.0,
+          ),
+        ),
+      )!;
+
+      // Half the width (100 px) with a 6 px margin: spans x 94..194.
+      expect(out.getPixel(100, 150).g, lessThan(80), reason: 'inside the larger logo');
+      expect(out.getPixel(90, 150).g, greaterThan(200), reason: 'left of the logo');
+    });
+
+    test('renderPreview draws the design small and without a watermark', () async {
+      final service = CanvasExportService(projectRepository: mockRepo);
+      final project = ProjectModel(
+        id: 'preview',
+        title: 'Preview',
+        canvasWidth: 2000.0,
+        canvasHeight: 1000.0,
+        backgroundColorValue: 0xFF3B82F6,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      final image = await service.renderPreview(project, maxEdge: 400.0);
+
+      expect(image.width, 400);
+      expect(image.height, 200);
+      image.dispose();
+    });
+
+    test('loadWatermarkLogo returns null for a missing logo', () async {
+      final service = CanvasExportService(
+        projectRepository: mockRepo,
+        resolveAppFile: (relative) async => File('${tempDir.path}/$relative'),
+      );
+      expect(await service.loadWatermarkLogo('branding/none.png'), isNull);
+    });
+
     test('renders with watermarks across all positions', () async {
       final service = CanvasExportService(projectRepository: mockRepo);
       final project = ProjectModel(

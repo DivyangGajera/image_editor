@@ -26,7 +26,7 @@ Work on short-lived branches off `master` (`feat/*`, `fix/*`, `refactor/*`, `cho
 ## App overview
 Chitred ("Chitred: The Photo Editor") is an offline Android photo editor with promotional-graphics tools: Riverpod 3 with codegen, Hive CE, light Material 3 theme (`core/theme/app_theme.dart`).
 
-`main()` runs `AppBootstrap.initialize()` (Hive in `<docs>/hive/`, all adapters via the generated registrar), pre-loads the font library, then starts on `HomeScreen` (project gallery) → `EditorScreen(projectId)` → `ExportSheet`.
+`main()` runs `AppBootstrap.initialize()` (Hive in `<docs>/hive/`, all adapters via the generated registrar), pre-loads the font library, then starts on `HomeScreen` (project gallery) → `EditorScreen(projectId)` → `ExportScreen`.
 
 Each feature in `lib/features/<feature>/` has a barrel (`<feature>.dart`), and so does each layer folder.
 
@@ -61,7 +61,9 @@ Each feature in `lib/features/<feature>/` has a barrel (`<feature>.dart`), and s
 ## Export (`features/export`)
 - `CanvasExportService.renderAtSize` draws everything in canvas units under one scale transform (`ExportResolution`: Standard / 2K / 4K, preserving the canvas aspect ratio). Text uses `TextLayerStyle` + `FontResolver`, exactly like the canvas.
 - `ExportNotifier` saves through `GallerySaver` (gal) into the "Chitred" album.
-- The brand watermark (`WatermarkSettingsNotifier`) is configured once. `isEnabled` is never persisted: in the export sheet, the main **Export** button exports without the watermark, and **Export with watermark** is the alternative.
+- The brand watermark (`WatermarkSettingsNotifier`) is configured once. `isEnabled` is never persisted: the main **Export** button exports without the watermark, and **Export with watermark** is the alternative.
+- `ExportScreen` (full screen) pins a live preview at the top: `CanvasExportService.renderPreview` renders the design once without a watermark, and `WatermarkPreviewPainter` paints the watermark over it with `WatermarkRenderer`, the same code the export uses, so the preview matches the saved file. Below are format, quality and the watermark settings (text or logo, size incl. `logoScale`, position, opacity), saved automatically after a short pause.
+- Slow imports after a system picker report `onPicked`, and `BusyOverlay.during` shows a blocking "Importing…" overlay from then until they finish.
 
 ## Background removal (`features/segmentation`)
 - ML Kit **Subject Segmentation** (people, pets, products, cars), not Selfie Segmentation. The model is delivered by Google Play services; the manifest's `com.google.mlkit.vision.DEPENDENCIES=subject_segment` requests it at install time.
