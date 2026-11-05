@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
+import 'package:image_editor/features/images/application/platform_image_converter.dart';
 
 /// Result of [ImageNormalizer.normalize]: re-encoded bytes plus their pixel size.
 class NormalizedImage {
@@ -36,12 +37,20 @@ abstract final class ImageNormalizer {
   /// JPEG quality used for opaque imports.
   static const int jpegQuality = 92;
 
-  /// Runs [normalize] in a background isolate.
+  /// Runs [normalize] in a background isolate. Formats the `image` package
+  /// cannot read, such as HEIC camera photos, are converted by the platform
+  /// first (see [PlatformImageConverter]).
   static Future<NormalizedImage> normalizeInBackground(
     Uint8List bytes, {
     int maxDimension = ImageNormalizer.maxDimension,
-  }) {
-    return Isolate.run(() => normalize(bytes, maxDimension: maxDimension));
+    PlatformImageDecode platformDecode = PlatformImageConverter.decodeWithPlatform,
+  }) async {
+    final decodable = await PlatformImageConverter.ensureDecodable(
+      bytes,
+      maxDimension: maxDimension,
+      decode: platformDecode,
+    );
+    return Isolate.run(() => normalize(decodable, maxDimension: maxDimension));
   }
 
   /// Decodes, orients, downscales and re-encodes [bytes]. Pure and synchronous;
