@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_editor/core/widgets/busy_overlay.dart';
 import 'package:image_editor/core/theme/app_theme.dart';
 import 'package:image_editor/core/utils/app_logger.dart';
 import 'package:image_editor/features/canvas/application/canvas_notifier.dart';
@@ -139,7 +140,11 @@ class _EditorWorkspace extends ConsumerWidget {
 
     await _guard(context, 'Could not add the photo.', () async {
       final commands = ref.read(editorCommandsProvider(projectId));
-      final photo = await commands.importPhoto(source);
+      final photo = await BusyOverlay.during(
+        context,
+        message: 'Importing photo…',
+        task: (showBusy) => commands.importPhoto(source, onPicked: showBusy),
+      );
       if (photo == null || !context.mounted) return;
 
       final bytes = await commands.readImportedPhoto(photo);

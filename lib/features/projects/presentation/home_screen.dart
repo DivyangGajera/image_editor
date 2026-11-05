@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_editor/core/widgets/busy_overlay.dart';
 import 'package:image_editor/core/constants/app_constants.dart';
 import 'package:image_editor/core/utils/app_logger.dart';
 import 'package:image_editor/features/canvas/domain/models/project_model.dart';
@@ -49,7 +50,11 @@ class HomeScreen extends ConsumerWidget {
         case BlankCanvasChoice(:final size):
           project = await notifier.createBlank(canvasSize: size);
         case PhotoChoice(:final source):
-          final pending = await notifier.importPhotoForNewProject(source);
+          final pending = await BusyOverlay.during(
+            context,
+            message: 'Importing photo…',
+            task: (showBusy) => notifier.importPhotoForNewProject(source, onPicked: showBusy),
+          );
           if (pending == null || !context.mounted) return;
           final bytes = await notifier.readPendingPhoto(pending);
           if (!context.mounted) return;

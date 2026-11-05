@@ -64,9 +64,11 @@ class UserStickersNotifier extends _$UserStickersNotifier {
   /// Lets the user pick an image for a new sticker and prepares it (upright,
   /// at most [maxStickerDimension] px). Returns null if cancelled; throws
   /// [StickerImportException] for unreadable images. Save it with [add].
-  Future<NormalizedImage?> pickImage() async {
+  /// [onPicked] runs once a file was chosen, before it is converted.
+  Future<NormalizedImage?> pickImage({void Function()? onPicked}) async {
     final bytes = await _pickFile();
     if (bytes == null) return null;
+    onPicked?.call();
     try {
       return await _normalize(bytes);
     } on FormatException {

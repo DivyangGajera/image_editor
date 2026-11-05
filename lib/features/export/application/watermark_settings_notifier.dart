@@ -73,9 +73,11 @@ class WatermarkSettingsNotifier extends _$WatermarkSettingsNotifier {
   /// Lets the user pick a logo image and prepares it (upright, at most
   /// [maxLogoDimension] px). Returns null if cancelled; throws
   /// [LogoImportException] for unreadable images. Store it with [storeLogo].
-  Future<NormalizedImage?> pickLogoImage() async {
+  /// [onPicked] runs once a file was chosen, before it is converted.
+  Future<NormalizedImage?> pickLogoImage({void Function()? onPicked}) async {
     final bytes = await _pickLogo();
     if (bytes == null) return null;
+    onPicked?.call();
     try {
       return await _normalize(bytes);
     } on FormatException {

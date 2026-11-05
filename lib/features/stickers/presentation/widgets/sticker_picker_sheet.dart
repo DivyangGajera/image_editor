@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_editor/core/widgets/busy_overlay.dart';
 import 'package:image_editor/features/segmentation/presentation/background_removal_prompt.dart';
 import 'package:image_editor/features/stickers/application/user_stickers_notifier.dart';
 import 'package:image_editor/features/stickers/data/sticker_repository.dart';
@@ -140,7 +141,11 @@ class _MyStickersGrid extends ConsumerWidget {
   Future<void> _import(BuildContext context, WidgetRef ref) async {
     final stickers = ref.read(userStickersProvider.notifier);
     try {
-      final image = await stickers.pickImage();
+      final image = await BusyOverlay.during(
+        context,
+        message: 'Importing image…',
+        task: (showBusy) => stickers.pickImage(onPicked: showBusy),
+      );
       if (image == null || !context.mounted) return;
       final cutout = await BackgroundRemovalPrompt.show(context, imageBytes: image.bytes);
       await stickers.add(image, cutoutPng: cutout);

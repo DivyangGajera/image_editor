@@ -50,8 +50,9 @@ class EditorCommands {
   /// Lets the user pick and crop a photo from [source] and saves it into the
   /// project. Returns null if the user cancelled. Add it with
   /// [addImportedPhoto] (after optionally removing its background).
-  Future<ImportedPhoto?> importPhoto(ImageSource source) {
-    return _imageImport.importPhoto(source: source, projectId: projectId);
+  /// [onPicked] runs once a photo was chosen, before it is converted.
+  Future<ImportedPhoto?> importPhoto(ImageSource source, {void Function()? onPicked}) {
+    return _imageImport.importPhoto(source: source, projectId: projectId, onPicked: onPicked);
   }
 
   /// Bytes of an imported photo, e.g. for the background-removal prompt.
