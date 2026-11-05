@@ -1,73 +1,76 @@
 import 'package:flutter/foundation.dart';
 import 'package:image_editor/core/constants/app_constants.dart';
 
-/// Positioning strategy for applying watermarks on the exported canvas.
+/// Where the watermark is placed on the exported image.
 enum WatermarkPosition {
-  /// Pinned to bottom-right corner with margin.
-  bottomRight,
+  bottomRight('Bottom right'),
+  bottomLeft('Bottom left'),
+  center('Center'),
+  tiled('Tiled');
 
-  /// Pinned to bottom-left corner with margin.
-  bottomLeft,
-
-  /// Positioned directly in the center of the canvas.
-  center,
-
-  /// Repeated diagonally in a tiled grid pattern across the entire canvas.
-  tiled,
+  const WatermarkPosition(this.label);
+  final String label;
 }
 
-/// Type of watermark to render (text string or image logo).
+/// What the watermark shows.
 enum WatermarkType {
-  /// Custom text string rendered with styled typography.
-  text,
+  text('Text'),
+  logo('Logo');
 
-  /// Transparent PNG image logo.
-  logo,
+  const WatermarkType(this.label);
+  final String label;
 }
 
-/// Configuration settings for adding watermarks during canvas export.
+/// The user's brand watermark. It is configured once and remembered; each
+/// export then chooses whether to include it ([isEnabled]).
 @immutable
 class WatermarkConfig {
   const WatermarkConfig({
     this.isEnabled = false,
     this.type = WatermarkType.text,
     this.text = AppConstants.appShortName,
-    this.logoAssetOrFilePath,
+    this.logoRelativePath,
     this.position = WatermarkPosition.bottomRight,
     this.opacity = 0.75,
     this.fontSize = 24.0,
     this.colorValue = 0xFFFFFFFF,
   });
 
-  /// Whether watermarking is active.
+  /// Whether this export includes the watermark. Not persisted: every export
+  /// asks again.
   final bool isEnabled;
 
-  /// Whether to render text or an image logo.
   final WatermarkType type;
 
-  /// Custom watermark text string.
+  /// Text shown for [WatermarkType.text].
   final String text;
 
-  /// File path or asset path for a transparent PNG logo.
-  final String? logoAssetOrFilePath;
+  /// App-relative path of the logo image for [WatermarkType.logo], e.g.
+  /// `branding/logo_<id>.png`. Never an absolute device path.
+  final String? logoRelativePath;
 
-  /// Layout placement strategy.
   final WatermarkPosition position;
 
-  /// Opacity multiplier between 0.1 and 1.0.
+  /// 0..1.
   final double opacity;
 
-  /// Font size for text watermarks (in canvas pixels).
+  /// Text size in canvas units (relative to a 1080 px canvas).
   final double fontSize;
 
-  /// ARGB integer color of text watermark.
+  /// ARGB text color.
   final int colorValue;
+
+  /// Whether the watermark has something to show.
+  bool get isReady => switch (type) {
+        WatermarkType.text => text.trim().isNotEmpty,
+        WatermarkType.logo => logoRelativePath != null,
+      };
 
   WatermarkConfig copyWith({
     bool? isEnabled,
     WatermarkType? type,
     String? text,
-    String? logoAssetOrFilePath,
+    String? logoRelativePath,
     WatermarkPosition? position,
     double? opacity,
     double? fontSize,
@@ -78,8 +81,7 @@ class WatermarkConfig {
       isEnabled: isEnabled ?? this.isEnabled,
       type: type ?? this.type,
       text: text ?? this.text,
-      logoAssetOrFilePath:
-          clearLogo ? null : (logoAssetOrFilePath ?? this.logoAssetOrFilePath),
+      logoRelativePath: clearLogo ? null : (logoRelativePath ?? this.logoRelativePath),
       position: position ?? this.position,
       opacity: opacity ?? this.opacity,
       fontSize: fontSize ?? this.fontSize,
@@ -87,15 +89,43 @@ class WatermarkConfig {
     );
   }
 
+  /// Serializes the remembered settings (everything except [isEnabled]).
+  Map<String, Object?> toMap() => <String, Object?>{
+        'type': type.name,
+        'text': text,
+        'logoRelativePath': logoRelativePath,
+        'position': position.name,
+        'opacity': opacity,
+        'fontSize': fontSize,
+        'colorValue': colorValue,
+      };
+
+  /// Restores settings saved with [toMap]; unknown or missing values fall
+  /// back to defaults.
+  factory WatermarkConfig.fromMap(Map<dynamic, dynamic> map) {
+    const defaults = WatermarkConfig();
+    T byName<T extends Enum>(List<T> values, Object? name, T fallback) =>
+        values.where((v) => v.name == name).firstOrNull ?? fallback;
+
+    return WatermarkConfig(
+      type: byName(WatermarkType.values, map['type'], defaults.type),
+      text: map['text'] is String ? map['text'] as String : defaults.text,
+      logoRelativePath: map['logoRelativePath'] is String ? map['logoRelativePath'] as String : null,
+      position: byName(WatermarkPosition.values, map['position'], defaults.position),
+      opacity: map['opacity'] is num ? (map['opacity'] as num).toDouble() : defaults.opacity,
+      fontSize: map['fontSize'] is num ? (map['fontSize'] as num).toDouble() : defaults.fontSize,
+      colorValue: map['colorValue'] is int ? map['colorValue'] as int : defaults.colorValue,
+    );
+  }
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is WatermarkConfig &&
-          runtimeType == other.runtimeType &&
           isEnabled == other.isEnabled &&
           type == other.type &&
           text == other.text &&
-          logoAssetOrFilePath == other.logoAssetOrFilePath &&
+          logoRelativePath == other.logoRelativePath &&
           position == other.position &&
           opacity == other.opacity &&
           fontSize == other.fontSize &&
@@ -106,7 +136,7 @@ class WatermarkConfig {
         isEnabled,
         type,
         text,
-        logoAssetOrFilePath,
+        logoRelativePath,
         position,
         opacity,
         fontSize,

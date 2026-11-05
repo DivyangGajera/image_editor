@@ -305,6 +305,46 @@ void main() {
       expect(standard.height, 50);
     });
 
+    test('draws the logo watermark from its app-relative path', () async {
+      final logo = img.Image(width: 50, height: 50)..clear(img.ColorRgba8(255, 0, 0, 255));
+      final logoFile = File('${tempDir.path}/branding/logo.png');
+      await logoFile.parent.create(recursive: true);
+      await logoFile.writeAsBytes(img.encodePng(logo));
+
+      final service = CanvasExportService(
+        projectRepository: mockRepo,
+        resolveAppFile: (relative) async => File('${tempDir.path}/$relative'),
+      );
+      final project = ProjectModel(
+        id: 'logo',
+        title: 'Logo',
+        canvasWidth: 200.0,
+        canvasHeight: 200.0,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      final out = img.decodePng(
+        await service.renderAtSize(
+          project: project,
+          outputSize: const Size(200, 200),
+          watermark: const WatermarkConfig(
+            isEnabled: true,
+            type: WatermarkType.logo,
+            logoRelativePath: 'branding/logo.png',
+            opacity: 1.0,
+          ),
+        ),
+      )!;
+
+      // Logo is 20% of the width (40 px) with a 3% (6 px) margin, bottom right.
+      final inLogo = out.getPixel(174, 174);
+      expect(inLogo.r, greaterThan(200));
+      expect(inLogo.g, lessThan(80));
+      final outside = out.getPixel(100, 100);
+      expect(outside.g, greaterThan(200), reason: 'rest of the canvas stays white');
+    });
+
     test('renders with watermarks across all positions', () async {
       final service = CanvasExportService(projectRepository: mockRepo);
       final project = ProjectModel(

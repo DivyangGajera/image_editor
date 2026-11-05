@@ -30,7 +30,16 @@ class CanvasExportService {
     required this.projectRepository,
     this.installedFontFamilies,
     this.picturesDirectoryProvider,
-  });
+    Future<File> Function(String relativePath)? resolveAppFile,
+  }) : _resolveAppFile = resolveAppFile ?? _resolveInDocuments;
+
+  /// Resolves app-relative paths (e.g. the watermark logo) to files.
+  final Future<File> Function(String relativePath) _resolveAppFile;
+
+  static Future<File> _resolveInDocuments(String relativePath) async {
+    final documents = await getApplicationDocumentsDirectory();
+    return File(p.join(documents.path, relativePath));
+  }
 
   final ProjectRepository projectRepository;
 
@@ -294,18 +303,11 @@ class CanvasExportService {
       return;
     }
 
-    final logoPath = watermark.logoAssetOrFilePath;
+    final logoPath = watermark.logoRelativePath;
     if (logoPath == null) return;
 
     try {
-      final file = File(logoPath);
-      final Uint8List logoBytes;
-      if (await file.exists()) {
-        logoBytes = await file.readAsBytes();
-      } else {
-        logoBytes = (await rootBundle.load(logoPath)).buffer.asUint8List();
-      }
-
+      final logoBytes = await (await _resolveAppFile(logoPath)).readAsBytes();
       final logo = await _decodeImageBytes(logoBytes);
       if (logo == null) return;
 
