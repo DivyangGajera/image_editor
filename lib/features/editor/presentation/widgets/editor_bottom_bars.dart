@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_editor/features/editor/presentation/widgets/tool_button.dart';
 import 'package:image_editor/features/images/presentation/widgets/filter_selector_bar.dart';
 import 'package:image_editor/features/layers/domain/models/models.dart';
+import 'package:image_editor/features/tutorial/tutorial.dart';
 
 /// Undo, Redo and Layers: shown first in every editor tool row, so they are
 /// always one tap away whatever the user is doing.
@@ -37,10 +38,7 @@ class _BarShell extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (top != null) ...[
-              const SizedBox(height: 8.0),
-              top!,
-            ],
+            if (top != null) ...[const SizedBox(height: 8.0), top!],
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 6.0),
               child: Row(
@@ -48,10 +46,7 @@ class _BarShell extends StatelessWidget {
                   if (leading != null) ...[
                     const SizedBox(width: 4.0),
                     leading!,
-                    SizedBox(
-                      height: 40.0,
-                      child: VerticalDivider(color: colors.outlineVariant, width: 12.0),
-                    ),
+                    SizedBox(height: 40.0, child: VerticalDivider(color: colors.outlineVariant, width: 12.0)),
                   ],
                   Expanded(
                     child: SingleChildScrollView(
@@ -60,28 +55,33 @@ class _BarShell extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 8.0),
                       child: Row(
                         children: [
-                          ToolButton(
-                            key: const ValueKey('editor_undo'),
-                            icon: Icons.undo_rounded,
-                            label: 'Undo',
-                            onPressed: quick.onUndo,
+                          TourAnchor(
+                            id: TourAnchors.quickActions,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                ToolButton(
+                                  key: const ValueKey('editor_undo'),
+                                  icon: Icons.undo_rounded,
+                                  label: 'Undo',
+                                  onPressed: quick.onUndo,
+                                ),
+                                ToolButton(
+                                  key: const ValueKey('editor_redo'),
+                                  icon: Icons.redo_rounded,
+                                  label: 'Redo',
+                                  onPressed: quick.onRedo,
+                                ),
+                                ToolButton(
+                                  key: const ValueKey('editor_layers'),
+                                  icon: Icons.layers_outlined,
+                                  label: 'Layers',
+                                  onPressed: quick.onLayers,
+                                ),
+                              ],
+                            ),
                           ),
-                          ToolButton(
-                            key: const ValueKey('editor_redo'),
-                            icon: Icons.redo_rounded,
-                            label: 'Redo',
-                            onPressed: quick.onRedo,
-                          ),
-                          ToolButton(
-                            key: const ValueKey('editor_layers'),
-                            icon: Icons.layers_outlined,
-                            label: 'Layers',
-                            onPressed: quick.onLayers,
-                          ),
-                          SizedBox(
-                            height: 40.0,
-                            child: VerticalDivider(color: colors.outlineVariant, width: 16.0),
-                          ),
+                          SizedBox(height: 40.0, child: VerticalDivider(color: colors.outlineVariant, width: 16.0)),
                           ...children,
                         ],
                       ),
@@ -121,35 +121,42 @@ class MainToolBar extends StatelessWidget {
     return _BarShell(
       quick: quick,
       children: [
-        ToolButton(
-          key: const ValueKey('tool_photo'),
-          icon: Icons.add_photo_alternate_outlined,
-          label: 'Photo',
-          onPressed: onAddPhoto,
+        TourAnchor(
+          id: TourAnchors.toolPhoto,
+          child: ToolButton(
+            key: const ValueKey('tool_photo'),
+            icon: Icons.add_photo_alternate_outlined,
+            label: 'Photo',
+            onPressed: onAddPhoto,
+          ),
         ),
-        ToolButton(
-          key: const ValueKey('tool_text'),
-          icon: Icons.title_rounded,
-          label: 'Text',
-          onPressed: onAddText,
+        TourAnchor(
+          id: TourAnchors.toolText,
+          child: ToolButton(
+            key: const ValueKey('tool_text'),
+            icon: Icons.title_rounded,
+            label: 'Text',
+            onPressed: onAddText,
+          ),
         ),
-        ToolButton(
-          key: const ValueKey('tool_sticker'),
-          icon: Icons.sell_outlined,
-          label: 'Sticker',
-          onPressed: onAddSticker,
+        TourAnchor(
+          id: TourAnchors.toolSticker,
+          child: ToolButton(
+            key: const ValueKey('tool_sticker'),
+            icon: Icons.sell_outlined,
+            label: 'Sticker',
+            onPressed: onAddSticker,
+          ),
         ),
-        ToolButton(
-          key: const ValueKey('tool_draw'),
-          icon: Icons.gesture_rounded,
-          label: 'Draw',
-          onPressed: onDraw,
-        ),
-        ToolButton(
-          key: const ValueKey('tool_background'),
-          icon: Icons.format_color_fill_rounded,
-          label: 'Background',
-          onPressed: onBackground,
+        ToolButton(key: const ValueKey('tool_draw'), icon: Icons.gesture_rounded, label: 'Draw', onPressed: onDraw),
+        TourAnchor(
+          id: TourAnchors.toolBackground,
+          child: ToolButton(
+            key: const ValueKey('tool_background'),
+            icon: Icons.format_color_fill_rounded,
+            label: 'Background',
+            onPressed: onBackground,
+          ),
         ),
       ],
     );
@@ -212,11 +219,14 @@ class LayerContextBar extends StatelessWidget {
           isActive: isFilterStripOpen,
           onPressed: onToggleFilters,
         ),
-        ToolButton(
-          key: const ValueKey('ctx_crop'),
-          icon: Icons.crop_rounded,
-          label: 'Crop',
-          onPressed: onCrop,
+        TourAnchor(
+          id: TourAnchors.crop,
+          child: ToolButton(
+            key: const ValueKey('ctx_crop'),
+            icon: Icons.crop_rounded,
+            label: 'Crop',
+            onPressed: onCrop,
+          ),
         ),
         if (current.isCropped)
           ToolButton(
@@ -225,35 +235,33 @@ class LayerContextBar extends StatelessWidget {
             label: 'Uncrop',
             onPressed: onResetCrop,
           ),
-        ToolButton(
-          key: const ValueKey('ctx_flip'),
-          icon: Icons.flip_rounded,
-          label: 'Flip',
-          onPressed: onFlip,
-        ),
-        ToolButton(
-          key: const ValueKey('ctx_remove_bg'),
-          icon: Icons.person_remove_alt_1_outlined,
-          label: 'Remove BG',
-          onPressed: isBusy ? null : onRemoveBackground,
+        ToolButton(key: const ValueKey('ctx_flip'), icon: Icons.flip_rounded, label: 'Flip', onPressed: onFlip),
+        TourAnchor(
+          id: TourAnchors.removeBackground,
+          child: ToolButton(
+            key: const ValueKey('ctx_remove_bg'),
+            icon: Icons.person_remove_alt_1_outlined,
+            label: 'Remove BG',
+            onPressed: isBusy ? null : onRemoveBackground,
+          ),
         ),
       ],
       if (current is TextLayer)
-        ToolButton(
-          key: const ValueKey('ctx_edit_text'),
-          icon: Icons.edit_outlined,
-          label: 'Edit',
-          onPressed: onEditText,
+        TourAnchor(
+          id: TourAnchors.editText,
+          child: ToolButton(
+            key: const ValueKey('ctx_edit_text'),
+            icon: Icons.edit_outlined,
+            label: 'Edit',
+            onPressed: onEditText,
+          ),
         ),
     ];
 
     return _BarShell(
       quick: quick,
       top: current is ImageLayer && isFilterStripOpen
-          ? FilterSelectorBar(
-              selectedFilterId: current.activeFilter,
-              onFilterSelected: onFilterSelected,
-            )
+          ? FilterSelectorBar(selectedFilterId: current.activeFilter, onFilterSelected: onFilterSelected)
           : null,
       leading: IconButton(
         key: const ValueKey('ctx_deselect'),
@@ -263,12 +271,15 @@ class LayerContextBar extends StatelessWidget {
       ),
       children: [
         ...typeTools,
-        ToolButton(
-          key: const ValueKey('ctx_lock'),
-          icon: current.isLocked ? Icons.lock_rounded : Icons.lock_open_rounded,
-          label: current.isLocked ? 'Unlock' : 'Lock',
-          isActive: current.isLocked,
-          onPressed: onToggleLock,
+        TourAnchor(
+          id: TourAnchors.lock,
+          child: ToolButton(
+            key: const ValueKey('ctx_lock'),
+            icon: current.isLocked ? Icons.lock_rounded : Icons.lock_open_rounded,
+            label: current.isLocked ? 'Unlock' : 'Lock',
+            isActive: current.isLocked,
+            onPressed: onToggleLock,
+          ),
         ),
         ToolButton(
           key: const ValueKey('ctx_duplicate'),

@@ -8,7 +8,10 @@ import 'package:image/image.dart' as img;
 import 'package:image_editor/core/theme/app_theme.dart';
 import 'package:image_editor/features/canvas/domain/models/project_model.dart';
 import 'package:image_editor/features/export/export.dart';
+import 'package:image_editor/features/tutorial/tutorial.dart';
 import 'package:mocktail/mocktail.dart';
+
+import '../../../helpers/memory_tutorial_repository.dart';
 
 class MockCanvasExportService extends Mock implements CanvasExportService {}
 
@@ -67,7 +70,14 @@ void main() {
     registerFallbackValue(FakeExportConfig());
   });
 
-  Future<void> openScreen(WidgetTester tester, {WatermarkConfig watermark = const WatermarkConfig()}) async {
+  late MemoryTutorialRepository tutorial;
+
+  Future<void> openScreen(
+    WidgetTester tester, {
+    WatermarkConfig watermark = const WatermarkConfig(),
+    bool toursUnseen = false,
+  }) async {
+    tutorial = toursUnseen ? MemoryTutorialRepository.unseen() : MemoryTutorialRepository();
     service = MockCanvasExportService();
     gallery = FakeGallery();
     settings = MemoryWatermarkSettings(watermark);
@@ -92,6 +102,7 @@ void main() {
           canvasExportServiceProvider.overrideWithValue(service),
           gallerySaverProvider.overrideWithValue(gallery),
           watermarkSettingsProvider.overrideWith(() => settings),
+          tutorialRepositoryProvider.overrideWithValue(tutorial),
         ],
         child: MaterialApp(
           theme: AppTheme.light(),
@@ -239,6 +250,82 @@ void main() {
 
     expect(find.text('Allow access to photos to save your design.'), findsOneWidget);
     expect(find.byType(ExportScreen), findsOneWidget);
+  });
+
+  group('app tour', () {
+    final overlay = find.byKey(const ValueKey('tour_overlay'));
+    const steps = [
+      ('Live preview', 'export_preview_image'),
+      ('Your watermark', 'watermark_type'),
+      ('Where it goes', 'watermark_position_tiled'),
+      ('Size and strength', 'watermark_opacity_slider'),
+      ('Export', 'export_with_watermark'),
+    ];
+
+    Rect hole(WidgetTester tester) =>
+        (tester.widget<CustomPaint>(find.byKey(const ValueKey('tour_spotlight'))).painter! as SpotlightPainter).hole;
+
+    testWidgets('the first visit walks through the watermark features and spotlights each real control',
+        (tester) async {
+      await openScreen(tester, toursUnseen: true);
+      expect(overlay, findsOneWidget);
+
+      for (var i = 0; i < steps.length; i++) {
+        final (title, targetKey) = steps[i];
+        expect(
+          find.descendant(of: find.byKey(const ValueKey('tour_bubble')), matching: find.text(title)),
+          findsOneWidget,
+          reason: 'step ${i + 1}',
+        );
+        final target = tester.getRect(find.byKey(ValueKey(targetKey)));
+        expect(hole(tester).contains(target.center), isTrue, reason: '$targetKey is spotlighted');
+        final screen = tester.view.physicalSize / tester.view.devicePixelRatio;
+        expect(target.bottom, lessThanOrEqualTo(screen.height), reason: '$targetKey was scrolled into view');
+        if (i < steps.length - 1) {
+          await tester.tap(find.byKey(const ValueKey('tour_next')));
+          await tester.pumpAndSettle();
+        }
+      }
+      await tester.tap(find.text('Got it'));
+      await tester.pumpAndSettle();
+
+      expect(overlay, findsNothing);
+      expect(tutorial.seen, contains('export'));
+    });
+
+    testWidgets('does not start by itself once seen, and the ? button replays it', (tester) async {
+      await openScreen(tester);
+      expect(overlay, findsNothing);
+
+      await tester.tap(find.byKey(const ValueKey('export_help')));
+      await tester.pumpAndSettle();
+
+      expect(overlay, findsOneWidget);
+    });
+
+    testWidgets('works for a logo watermark too', (tester) async {
+      await openScreen(
+        tester,
+        watermark: const WatermarkConfig(type: WatermarkType.logo, logoRelativePath: 'branding/logo.png'),
+        toursUnseen: true,
+      );
+
+      expect(overlay, findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('tour_next')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('logo_size_slider')), findsOneWidget);
+      expect(hole(tester).contains(tester.getCenter(find.byKey(const ValueKey('watermark_type')))), isTrue);
+    });
+
+    testWidgets('the tour closes when leaving the screen', (tester) async {
+      await openScreen(tester, toursUnseen: true);
+      expect(overlay, findsOneWidget);
+
+      Navigator.of(tester.element(find.byType(ExportScreen))).pop();
+      await tester.pumpAndSettle();
+
+      expect(overlay, findsNothing);
+    });
   });
 
   test('the preview painter draws in canvas units scaled to the preview', () {

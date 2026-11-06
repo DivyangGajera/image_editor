@@ -14,6 +14,7 @@ import 'package:image_editor/features/export/data/watermark_settings_repository.
 import 'package:image_editor/features/export/domain/models/models.dart';
 import 'package:image_editor/features/export/presentation/widgets/export_success_sheet.dart';
 import 'package:image_editor/features/segmentation/presentation/background_removal_prompt.dart';
+import 'package:image_editor/features/tutorial/tutorial.dart';
 
 /// Exports a project: a live preview of the design (with the brand
 /// watermark exactly as it will be saved), format and quality, the
@@ -192,214 +193,249 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
     final isExporting = ref.watch(exportProvider.select((s) => s.isExporting));
     final media = MediaQuery.of(context);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Export')),
-      body: Column(
-        children: [
-          // Pinned, so the watermark stays visible while it is adjusted.
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20.0, 8.0, 20.0, 4.0),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: media.size.height * 0.32),
-                child: AspectRatio(
-                  aspectRatio: _canvasSize.width / _canvasSize.height,
-                  child: _ExportPreview(
-                    canvasSize: _canvasSize,
-                    preview: _preview,
-                    failed: _previewFailed,
-                    watermark: _showWatermark && _watermarkLoaded ? _watermark : null,
-                    logo: _logo,
-                  ),
-                ),
-              ),
+    return TourHost(
+      autoStart: Tours.export,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Export'),
+          actions: [
+            IconButton(
+              key: const ValueKey('export_help'),
+              tooltip: 'Show the tour',
+              icon: const Icon(Icons.help_outline_rounded),
+              onPressed: () => ref.read(tourRunnerProvider).run(context, Tours.export, force: true),
             ),
-          ),
-          Expanded(child: _settingsList(theme, colors)),
-        ],
-      ),
-      bottomNavigationBar: _actions(theme, colors, isExporting),
-    );
-  }
-
-  Widget _settingsList(ThemeData theme, ColorScheme colors) {
-    return ListView(
-      key: const ValueKey('export_screen_list'),
-      padding: const EdgeInsets.fromLTRB(20.0, 0.0, 20.0, 24.0),
-      children: [
-        SwitchListTile(
-          key: const ValueKey('preview_watermark_switch'),
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Show watermark in preview'),
-          value: _showWatermark,
-          onChanged: (value) => setState(() => _showWatermark = value),
-        ),
-        const SizedBox(height: 8.0),
-        Text('Format', style: theme.textTheme.labelLarge),
-        const SizedBox(height: 8.0),
-        SegmentedButton<ExportFormat>(
-          key: const ValueKey('export_format'),
-          segments: const [
-            ButtonSegment(value: ExportFormat.png, label: Text('PNG')),
-            ButtonSegment(value: ExportFormat.jpeg, label: Text('JPEG')),
           ],
-          selected: {_format},
-          onSelectionChanged: (s) => setState(() => _format = s.first),
         ),
-        if (_format == ExportFormat.jpeg) ...[
-          const SizedBox(height: 8.0),
-          Text('JPEG quality $_jpegQuality', style: theme.textTheme.labelLarge),
-          Slider(
-            key: const ValueKey('jpeg_quality_slider'),
-            value: _jpegQuality.toDouble(),
-            min: 60,
-            max: 100,
-            divisions: 40,
-            onChanged: (v) => setState(() => _jpegQuality = v.round()),
-          ),
-        ],
-        const SizedBox(height: 16.0),
-        Text('Quality', style: theme.textTheme.labelLarge),
-        const SizedBox(height: 8.0),
-        SegmentedButton<ExportResolution>(
-          key: const ValueKey('export_resolution'),
-          segments: [
-            for (final resolution in ExportResolution.values)
-              ButtonSegment(
-                value: resolution,
-                label: Text(resolution.label, key: ValueKey('res_${resolution.name}')),
-              ),
-          ],
-          selected: {_resolution},
-          onSelectionChanged: (s) => setState(() => _resolution = s.first),
-        ),
-        const SizedBox(height: 6.0),
-        Text(
-          _sizeLabel(_resolution),
-          key: const ValueKey('export_size_label'),
-          style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
-        ),
-        const Divider(height: 40.0),
-        Text('Brand watermark', style: theme.textTheme.titleMedium),
-        const SizedBox(height: 4.0),
-        Text(
-          'Remembered for next time. It is added only when you tap Export with watermark.',
-          style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
-        ),
-        const SizedBox(height: 12.0),
-        SegmentedButton<WatermarkType>(
-          key: const ValueKey('watermark_type'),
-          segments: [for (final type in WatermarkType.values) ButtonSegment(value: type, label: Text(type.label))],
-          selected: {_watermark.type},
-          onSelectionChanged: (s) => _update(_watermark.copyWith(type: s.first)),
-        ),
-        const SizedBox(height: 16.0),
-        if (_watermark.type == WatermarkType.text) ...[
-          TextField(
-            key: const ValueKey('watermark_text_field'),
-            controller: _text,
-            maxLength: 40,
-            decoration: const InputDecoration(labelText: 'Watermark text'),
-            onChanged: (value) => _update(_watermark.copyWith(text: value)),
-          ),
-          Text('Color', style: theme.textTheme.labelLarge),
-          const SizedBox(height: 8.0),
-          Wrap(
-            spacing: 10.0,
-            children: [
-              for (final color in textColors)
-                GestureDetector(
-                  key: ValueKey('watermark_color_$color'),
-                  onTap: () => _update(_watermark.copyWith(colorValue: color)),
-                  child: Container(
-                    width: 36.0,
-                    height: 36.0,
-                    decoration: BoxDecoration(
-                      color: Color(color),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: color == _watermark.colorValue ? colors.primary : colors.outlineVariant,
-                        width: color == _watermark.colorValue ? 3.0 : 1.0,
+        body: Column(
+          children: [
+            // Pinned, so the watermark stays visible while it is adjusted.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20.0, 8.0, 20.0, 4.0),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: media.size.height * 0.32),
+                  child: TourAnchor(
+                    id: TourAnchors.exportPreview,
+                    child: AspectRatio(
+                      aspectRatio: _canvasSize.width / _canvasSize.height,
+                      child: _ExportPreview(
+                        canvasSize: _canvasSize,
+                        preview: _preview,
+                        failed: _previewFailed,
+                        watermark: _showWatermark && _watermarkLoaded ? _watermark : null,
+                        logo: _logo,
                       ),
                     ),
                   ),
                 ),
-            ],
-          ),
-          const SizedBox(height: 12.0),
-          Text('Size', style: theme.textTheme.labelLarge),
-          Slider(
-            key: const ValueKey('watermark_size_slider'),
-            value: _watermark.fontSize.clamp(12.0, 96.0),
-            min: 12.0,
-            max: 96.0,
-            onChanged: (v) => _update(_watermark.copyWith(fontSize: v)),
-          ),
-        ] else ...[
-          Row(
-            children: [
-              Container(
-                width: 64.0,
-                height: 64.0,
-                decoration: BoxDecoration(
-                  color: colors.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(12.0),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: _LogoThumbnail(relativePath: _watermark.logoRelativePath),
               ),
-              const SizedBox(width: 16.0),
-              Expanded(
-                child: OutlinedButton.icon(
-                  key: const ValueKey('pick_logo_button'),
-                  onPressed: _pickLogo,
-                  icon: const Icon(Icons.upload_file_outlined),
-                  label: Text(_watermark.logoRelativePath == null ? 'Choose logo' : 'Change logo'),
-                ),
-              ),
-            ],
-          ),
-          if (_logoError != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8.0),
-              child: Text(_logoError!, style: TextStyle(color: colors.error)),
             ),
-          const SizedBox(height: 12.0),
-          Text('Size', style: theme.textTheme.labelLarge),
-          Slider(
-            key: const ValueKey('logo_size_slider'),
-            value: _watermark.logoScale.clamp(WatermarkConfig.minLogoScale, WatermarkConfig.maxLogoScale),
-            min: WatermarkConfig.minLogoScale,
-            max: WatermarkConfig.maxLogoScale,
-            onChanged: (v) => _update(_watermark.copyWith(logoScale: v)),
-          ),
-        ],
-        const SizedBox(height: 8.0),
-        Text('Position', style: theme.textTheme.labelLarge),
-        const SizedBox(height: 8.0),
-        Wrap(
-          spacing: 8.0,
-          runSpacing: 8.0,
-          children: [
-            for (final position in WatermarkPosition.values)
-              ChoiceChip(
-                key: ValueKey('watermark_position_${position.name}'),
-                label: Text(position.label),
-                selected: _watermark.position == position,
-                onSelected: (_) => _update(_watermark.copyWith(position: position)),
-              ),
+            Expanded(child: _settingsList(theme, colors)),
           ],
         ),
-        const SizedBox(height: 12.0),
-        Text('Opacity ${(100 * _watermark.opacity).round()}%', style: theme.textTheme.labelLarge),
-        Slider(
-          key: const ValueKey('watermark_opacity_slider'),
-          value: _watermark.opacity,
-          min: 0.1,
-          max: 1.0,
-          onChanged: (v) => _update(_watermark.copyWith(opacity: v)),
-        ),
-      ],
+        bottomNavigationBar: _actions(theme, colors, isExporting),
+      ),
+    );
+  }
+
+  Widget _settingsList(ThemeData theme, ColorScheme colors) {
+    // A plain scroll view (not a lazy list): every row is built, so tour
+    // targets further down exist and can be scrolled to.
+    return SingleChildScrollView(
+      key: const ValueKey('export_screen_list'),
+      padding: const EdgeInsets.fromLTRB(20.0, 0.0, 20.0, 24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SwitchListTile(
+            key: const ValueKey('preview_watermark_switch'),
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Show watermark in preview'),
+            value: _showWatermark,
+            onChanged: (value) => setState(() => _showWatermark = value),
+          ),
+          const SizedBox(height: 8.0),
+          Text('Format', style: theme.textTheme.labelLarge),
+          const SizedBox(height: 8.0),
+          SegmentedButton<ExportFormat>(
+            key: const ValueKey('export_format'),
+            segments: const [
+              ButtonSegment(value: ExportFormat.png, label: Text('PNG')),
+              ButtonSegment(value: ExportFormat.jpeg, label: Text('JPEG')),
+            ],
+            selected: {_format},
+            onSelectionChanged: (s) => setState(() => _format = s.first),
+          ),
+          if (_format == ExportFormat.jpeg) ...[
+            const SizedBox(height: 8.0),
+            Text('JPEG quality $_jpegQuality', style: theme.textTheme.labelLarge),
+            Slider(
+              key: const ValueKey('jpeg_quality_slider'),
+              value: _jpegQuality.toDouble(),
+              min: 60,
+              max: 100,
+              divisions: 40,
+              onChanged: (v) => setState(() => _jpegQuality = v.round()),
+            ),
+          ],
+          const SizedBox(height: 16.0),
+          Text('Quality', style: theme.textTheme.labelLarge),
+          const SizedBox(height: 8.0),
+          SegmentedButton<ExportResolution>(
+            key: const ValueKey('export_resolution'),
+            segments: [
+              for (final resolution in ExportResolution.values)
+                ButtonSegment(
+                  value: resolution,
+                  label: Text(resolution.label, key: ValueKey('res_${resolution.name}')),
+                ),
+            ],
+            selected: {_resolution},
+            onSelectionChanged: (s) => setState(() => _resolution = s.first),
+          ),
+          const SizedBox(height: 6.0),
+          Text(
+            _sizeLabel(_resolution),
+            key: const ValueKey('export_size_label'),
+            style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+          ),
+          const Divider(height: 40.0),
+          Text('Brand watermark', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 4.0),
+          Text(
+            'Remembered for next time. It is added only when you tap Export with watermark.',
+            style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+          ),
+          const SizedBox(height: 12.0),
+          TourAnchor(
+            id: TourAnchors.watermarkType,
+            child: SegmentedButton<WatermarkType>(
+              key: const ValueKey('watermark_type'),
+              segments: [for (final type in WatermarkType.values) ButtonSegment(value: type, label: Text(type.label))],
+              selected: {_watermark.type},
+              onSelectionChanged: (s) => _update(_watermark.copyWith(type: s.first)),
+            ),
+          ),
+          const SizedBox(height: 16.0),
+          if (_watermark.type == WatermarkType.text) ...[
+            TextField(
+              key: const ValueKey('watermark_text_field'),
+              controller: _text,
+              maxLength: 40,
+              decoration: const InputDecoration(labelText: 'Watermark text'),
+              onChanged: (value) => _update(_watermark.copyWith(text: value)),
+            ),
+            Text('Color', style: theme.textTheme.labelLarge),
+            const SizedBox(height: 8.0),
+            Wrap(
+              spacing: 10.0,
+              children: [
+                for (final color in textColors)
+                  GestureDetector(
+                    key: ValueKey('watermark_color_$color'),
+                    onTap: () => _update(_watermark.copyWith(colorValue: color)),
+                    child: Container(
+                      width: 36.0,
+                      height: 36.0,
+                      decoration: BoxDecoration(
+                        color: Color(color),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: color == _watermark.colorValue ? colors.primary : colors.outlineVariant,
+                          width: color == _watermark.colorValue ? 3.0 : 1.0,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12.0),
+            Text('Size', style: theme.textTheme.labelLarge),
+            Slider(
+              key: const ValueKey('watermark_size_slider'),
+              value: _watermark.fontSize.clamp(12.0, 96.0),
+              min: 12.0,
+              max: 96.0,
+              onChanged: (v) => _update(_watermark.copyWith(fontSize: v)),
+            ),
+          ] else ...[
+            Row(
+              children: [
+                Container(
+                  width: 64.0,
+                  height: 64.0,
+                  decoration: BoxDecoration(
+                    color: colors.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(12.0),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: _LogoThumbnail(relativePath: _watermark.logoRelativePath),
+                ),
+                const SizedBox(width: 16.0),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    key: const ValueKey('pick_logo_button'),
+                    onPressed: _pickLogo,
+                    icon: const Icon(Icons.upload_file_outlined),
+                    label: Text(_watermark.logoRelativePath == null ? 'Choose logo' : 'Change logo'),
+                  ),
+                ),
+              ],
+            ),
+            if (_logoError != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: Text(_logoError!, style: TextStyle(color: colors.error)),
+              ),
+            const SizedBox(height: 12.0),
+            Text('Size', style: theme.textTheme.labelLarge),
+            Slider(
+              key: const ValueKey('logo_size_slider'),
+              value: _watermark.logoScale.clamp(WatermarkConfig.minLogoScale, WatermarkConfig.maxLogoScale),
+              min: WatermarkConfig.minLogoScale,
+              max: WatermarkConfig.maxLogoScale,
+              onChanged: (v) => _update(_watermark.copyWith(logoScale: v)),
+            ),
+          ],
+          const SizedBox(height: 8.0),
+          Text('Position', style: theme.textTheme.labelLarge),
+          const SizedBox(height: 8.0),
+          TourAnchor(
+            id: TourAnchors.watermarkPosition,
+            child: Wrap(
+              spacing: 8.0,
+              runSpacing: 8.0,
+              children: [
+                for (final position in WatermarkPosition.values)
+                  ChoiceChip(
+                    key: ValueKey('watermark_position_${position.name}'),
+                    label: Text(position.label),
+                    selected: _watermark.position == position,
+                    onSelected: (_) => _update(_watermark.copyWith(position: position)),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12.0),
+          TourAnchor(
+            id: TourAnchors.watermarkOpacity,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Opacity ${(100 * _watermark.opacity).round()}%', style: theme.textTheme.labelLarge),
+                Slider(
+                  key: const ValueKey('watermark_opacity_slider'),
+                  value: _watermark.opacity,
+                  min: 0.1,
+                  max: 1.0,
+                  onChanged: (v) => _update(_watermark.copyWith(opacity: v)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -416,18 +452,27 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
               const LinearProgressIndicator(key: ValueKey('export_progress')),
               const SizedBox(height: 12.0),
             ],
-            FilledButton.icon(
-              key: const ValueKey('export_without_watermark'),
-              onPressed: isExporting ? null : () => _export(withWatermark: false),
-              icon: const Icon(Icons.download_rounded),
-              label: const Text('Export'),
-            ),
-            const SizedBox(height: 8.0),
-            OutlinedButton.icon(
-              key: const ValueKey('export_with_watermark'),
-              onPressed: isExporting || !_watermark.isReady ? null : () => _export(withWatermark: true),
-              icon: const Icon(Icons.branding_watermark_outlined),
-              label: const Text('Export with watermark'),
+            TourAnchor(
+              id: TourAnchors.exportActions,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  FilledButton.icon(
+                    key: const ValueKey('export_without_watermark'),
+                    onPressed: isExporting ? null : () => _export(withWatermark: false),
+                    icon: const Icon(Icons.download_rounded),
+                    label: const Text('Export'),
+                  ),
+                  const SizedBox(height: 8.0),
+                  OutlinedButton.icon(
+                    key: const ValueKey('export_with_watermark'),
+                    onPressed: isExporting || !_watermark.isReady ? null : () => _export(withWatermark: true),
+                    icon: const Icon(Icons.branding_watermark_outlined),
+                    label: const Text('Export with watermark'),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 6.0),
             Text(
