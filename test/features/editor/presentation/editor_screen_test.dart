@@ -14,7 +14,10 @@ import 'package:image_editor/core/network/internet_check.dart';
 import 'package:image_editor/features/layers/domain/models/models.dart';
 import 'package:image_editor/features/segmentation/application/subject_model_installer.dart';
 
+import 'package:image_editor/features/tutorial/tutorial.dart';
+
 import '../../../helpers/fake_internet_check.dart';
+import '../../../helpers/memory_tutorial_repository.dart';
 import '../../../helpers/fake_subject_model_installer.dart';
 import '../../../helpers/pump_until.dart';
 
@@ -24,12 +27,13 @@ void main() {
   late HistoryManager historyManager;
   late ProviderContainer container;
   late FakeSubjectModelInstaller installer;
+  late MemoryTutorialRepository tutorial;
 
   const projectId = 'editor-screen';
 
   setUpAll(AppBootstrap.registerAdapters);
 
-  Future<void> createProject(List<CanvasLayer> layers) async {
+  Future<void> createProject(List<CanvasLayer> layers, {bool toursUnseen = false}) async {
     tempDir = await Directory.systemTemp.createTemp('editor_screen_test_');
     Hive.init(tempDir.path);
     repository = ProjectRepository(
@@ -54,12 +58,14 @@ void main() {
     // Real Hive I/O cannot complete inside the widget-test fake-async zone.
     await historyManager.load();
     installer = FakeSubjectModelInstaller();
+    tutorial = toursUnseen ? MemoryTutorialRepository.unseen() : MemoryTutorialRepository();
     container = ProviderContainer(
       overrides: [
         projectRepositoryProvider.overrideWithValue(repository),
         historyManagerProvider(projectId).overrideWithValue(historyManager),
         subjectModelInstallerProvider.overrideWithValue(installer),
         internetCheckProvider.overrideWithValue(FakeInternetCheck()),
+        tutorialRepositoryProvider.overrideWithValue(tutorial),
       ],
     );
   }
@@ -155,6 +161,134 @@ void main() {
 
     await tapAndSettle(tester, find.byKey(const ValueKey('hint_add_text')));
     expect(find.text('Add Text'), findsOneWidget, reason: 'same as the Text tool');
+  });
+
+  group('app tour', () {
+    final overlay = find.byKey(const ValueKey('tour_overlay'));
+    const editorSteps = [
+      'Add a photo',
+      'Add text',
+      'Stickers and your logo',
+      'Background colour',
+      'Undo, Redo and Layers',
+      'Export',
+    ];
+
+    /// Text inside the tour bubble (the same words also appear on real buttons).
+    Finder inTour(String text) => find.descendant(of: find.byKey(const ValueKey('tour_bubble')), matching: find.text(text));
+
+    Future<void> next(WidgetTester tester) async {
+      await tester.tap(find.byKey(const ValueKey('tour_next')));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('the first visit tours the real tools, then never starts by itself again', (tester) async {
+      await tester.runAsync(() => createProject(const [], toursUnseen: true));
+      await pumpEditor(tester);
+
+      expect(overlay, findsOneWidget);
+      for (var i = 0; i < editorSteps.length; i++) {
+        expect(inTour(editorSteps[i]), findsOneWidget, reason: 'step ${i + 1}');
+        expect(find.text('${i + 1} of ${editorSteps.length}'), findsOneWidget);
+        if (i < editorSteps.length - 1) await next(tester);
+      }
+      await tester.tap(find.text('Got it'));
+      await tester.pumpAndSettle();
+
+      expect(overlay, findsNothing);
+      expect(tutorial.seen, contains('editor'));
+    });
+
+    testWidgets('each step spotlights its real button, scrolling the tool row to it', (tester) async {
+      await tester.runAsync(() => createProject(const [], toursUnseen: true));
+      await pumpEditor(tester);
+
+      for (final key in ['tool_photo', 'tool_text', 'tool_sticker', 'tool_background']) {
+        final hole =
+            (tester.widget<CustomPaint>(find.byKey(const ValueKey('tour_spotlight'))).painter! as SpotlightPainter).hole;
+        final button = tester.getRect(find.byKey(ValueKey(key)));
+        expect(hole.contains(button.center), isTrue, reason: key);
+        expect(button.right, lessThanOrEqualTo(tester.view.physicalSize.width / tester.view.devicePixelRatio));
+        await next(tester);
+      }
+    });
+
+    testWidgets('Skip ends the tour', (tester) async {
+      await tester.runAsync(() => createProject(const [], toursUnseen: true));
+      await pumpEditor(tester);
+
+      await tester.tap(find.byKey(const ValueKey('tour_skip')));
+      await tester.pumpAndSettle();
+
+      expect(overlay, findsNothing);
+    });
+
+    testWidgets('no automatic tour once seen, and the ? button replays it', (tester) async {
+      await tester.runAsync(() => createProject(const []));
+      await pumpEditor(tester);
+      expect(overlay, findsNothing);
+
+      await tester.tap(find.byKey(const ValueKey('editor_help')));
+      await tester.pumpAndSettle();
+
+      expect(overlay, findsOneWidget);
+      expect(inTour('Add a photo'), findsOneWidget);
+    });
+
+    testWidgets('selecting a photo for the first time shows the Remove BG and Crop tips', (tester) async {
+      await tester.runAsync(() => createProject(const [photo, caption], toursUnseen: true));
+      await pumpEditor(tester);
+      await tester.tap(find.byKey(const ValueKey('tour_skip')));
+      await tester.pumpAndSettle();
+
+      container.read(canvasProvider(projectId).notifier).selectLayer('photo');
+      await tester.pumpAndSettle();
+
+      expect(inTour('Remove the background'), findsOneWidget);
+      await next(tester);
+      expect(inTour('Crop'), findsOneWidget);
+      await next(tester);
+      expect(inTour('Lock'), findsOneWidget);
+      expect(find.text('Got it'), findsOneWidget);
+      await next(tester);
+      expect(overlay, findsNothing);
+      expect(tutorial.seen, containsAll(['editor', 'photo_tools']));
+
+      // Selecting a photo again, later, shows nothing.
+      container.read(canvasProvider(projectId).notifier).selectLayer(null);
+      await tester.pumpAndSettle();
+      container.read(canvasProvider(projectId).notifier).selectLayer('photo');
+      await tester.pumpAndSettle();
+      expect(overlay, findsNothing);
+    });
+
+    testWidgets('selecting text for the first time shows the Edit tip', (tester) async {
+      await tester.runAsync(() => createProject(const [photo, caption], toursUnseen: true));
+      await pumpEditor(tester);
+      await tester.tap(find.byKey(const ValueKey('tour_skip')));
+      await tester.pumpAndSettle();
+
+      container.read(canvasProvider(projectId).notifier).selectLayer('caption');
+      await tester.pumpAndSettle();
+
+      expect(inTour('Edit your text'), findsOneWidget);
+      final hole =
+          (tester.widget<CustomPaint>(find.byKey(const ValueKey('tour_spotlight'))).painter! as SpotlightPainter).hole;
+      expect(hole.contains(tester.getCenter(find.byKey(const ValueKey('ctx_edit_text')))), isTrue);
+    });
+
+    testWidgets('layer tips wait for the main tour instead of stacking on it', (tester) async {
+      await tester.runAsync(() => createProject(const [photo], toursUnseen: true));
+      await pumpEditor(tester);
+      expect(inTour('Add a photo'), findsOneWidget);
+
+      container.read(canvasProvider(projectId).notifier).selectLayer('photo');
+      await tester.pumpAndSettle();
+
+      expect(inTour('Add a photo'), findsOneWidget, reason: 'still on the main tour');
+      expect(inTour('Remove the background'), findsNothing);
+      expect(tutorial.seen, isNot(contains('photo_tools')));
+    });
   });
 
   testWidgets('Undo, Redo and Layers lead the tool row in every mode', (tester) async {

@@ -21,6 +21,7 @@ import 'package:image_editor/features/segmentation/presentation/background_remov
 import 'package:image_editor/features/segmentation/presentation/background_remover_download.dart';
 import 'package:image_editor/features/segmentation/presentation/widgets/segmentation_progress_bar.dart';
 import 'package:image_editor/features/stickers/presentation/widgets/sticker_picker_sheet.dart';
+import 'package:image_editor/features/tutorial/tutorial.dart';
 import 'package:image_picker/image_picker.dart';
 
 /// The main editing workspace for one project.
@@ -212,6 +213,21 @@ class _EditorWorkspace extends ConsumerWidget {
       canvasProvider(projectId).select((s) => s.requireValue.project.layers.isEmpty),
     );
 
+    // One-time tips the first time a photo or a text layer is selected.
+    ref.listen(canvasProvider(projectId).select((s) => s.requireValue.selectedLayer), (previous, next) {
+      final tour = switch (next) {
+        ImageLayer() when previous is! ImageLayer => Tours.photoTools,
+        TextLayer() when previous is! TextLayer => Tours.textTools,
+        _ => null,
+      };
+      if (tour == null) return;
+      final runner = ref.read(tourRunnerProvider);
+      // After the frame that builds the layer's tool row.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) runner.run(context, tour);
+      });
+    });
+
     final quick = EditorQuickActions(
       onUndo: history.canUndo ? canvasNotifier.undo : null,
       onRedo: history.canRedo ? canvasNotifier.redo : null,
@@ -297,109 +313,124 @@ class _EditorWorkspace extends ConsumerWidget {
       );
     }
 
-    return Scaffold(
-      backgroundColor: AppTheme.canvasBackdrop,
-      appBar: AppBar(
-        titleSpacing: 0,
-        backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
-        shape: Border(bottom: BorderSide(color: Theme.of(context).colorScheme.outlineVariant)),
-        title: Tooltip(
-          message: 'Rename project',
-          child: InkWell(
-            key: const ValueKey('editor_title'),
-            borderRadius: BorderRadius.circular(8.0),
-            onTap: () async {
-              final newTitle = await showRenameProjectDialog(context, title);
-              if (newTitle != null) await canvasNotifier.renameProject(newTitle);
-            },
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
+    return TourHost(
+      autoStart: Tours.editor,
+      child: Scaffold(
+        backgroundColor: AppTheme.canvasBackdrop,
+        appBar: AppBar(
+          titleSpacing: 0,
+          backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
+          shape: Border(bottom: BorderSide(color: Theme.of(context).colorScheme.outlineVariant)),
+          title: Tooltip(
+            message: 'Rename project',
+            child: InkWell(
+              key: const ValueKey('editor_title'),
+              borderRadius: BorderRadius.circular(8.0),
+              onTap: () async {
+                final newTitle = await showRenameProjectDialog(context, title);
+                if (newTitle != null) await canvasNotifier.renameProject(newTitle);
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                    const SizedBox(width: 4.0),
+                    const Icon(Icons.edit_outlined, size: 16.0),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            IconButton(
+              key: const ValueKey('editor_help'),
+              tooltip: 'Show the tour',
+              icon: const Icon(Icons.help_outline_rounded),
+              onPressed: () {
+                canvasNotifier.selectLayer(null);
+                ref.read(tourRunnerProvider).run(context, Tours.editor, force: true);
+              },
+            ),
+            Padding(
+              padding: const EdgeInsets.only(left: 4.0, right: 12.0),
+              child: TourAnchor(
+                id: TourAnchors.exportButton,
+                child: FilledButton(
+                  key: const ValueKey('editor_export'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(84.0, 40.0),
+                    shape: const StadiumBorder(),
+                  ),
+                  onPressed: () {
+                    canvasNotifier.selectLayer(null);
+                    ExportScreen.show(
+                      context,
+                      ref.read(canvasProvider(projectId)).requireValue.project,
+                    );
+                  },
+                  child: const Text('Export'),
+                ),
+              ),
+            ),
+          ],
+        ),
+        body: Column(
+          children: [
+            Expanded(
+              child: Stack(
                 children: [
-                  Flexible(
-                    child: Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium,
+                  Positioned.fill(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: CanvasView(
+                        projectId: projectId,
+                        overlayBuilder: ui.mode == EditorMode.draw
+                            ? (canvasSize) => DoodleCanvasOverlay(
+                                  key: const ValueKey('doodle_overlay'),
+                                  canvasSize: canvasSize,
+                                  strokeColor: Color(ui.drawColorValue),
+                                  strokeWidth: ui.drawStrokeWidth,
+                                  hasGlow: ui.drawGlow,
+                                  onDoodleFinished: (doodle) =>
+                                      canvasNotifier.addLayer(doodle, select: false),
+                                )
+                            : null,
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 4.0),
-                  const Icon(Icons.edit_outlined, size: 16.0),
+                  if (isEmpty && ui.mode != EditorMode.draw)
+                    Center(
+                      child: _EmptyCanvasHint(
+                        onAddPhoto: () => _addPhoto(context, ref),
+                        onAddText: () => _addText(context, ref),
+                      ),
+                    ),
+                  const Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: SegmentationProgressBar(message: 'Removing background…'),
+                  ),
                 ],
               ),
             ),
-          ),
+          ],
         ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(left: 4.0, right: 12.0),
-            child: FilledButton(
-              key: const ValueKey('editor_export'),
-              style: FilledButton.styleFrom(
-                minimumSize: const Size(84.0, 40.0),
-                shape: const StadiumBorder(),
-              ),
-              onPressed: () {
-                canvasNotifier.selectLayer(null);
-                ExportScreen.show(
-                  context,
-                  ref.read(canvasProvider(projectId)).requireValue.project,
-                );
-              },
-              child: const Text('Export'),
-            ),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: CanvasView(
-                      projectId: projectId,
-                      overlayBuilder: ui.mode == EditorMode.draw
-                          ? (canvasSize) => DoodleCanvasOverlay(
-                                key: const ValueKey('doodle_overlay'),
-                                canvasSize: canvasSize,
-                                strokeColor: Color(ui.drawColorValue),
-                                strokeWidth: ui.drawStrokeWidth,
-                                hasGlow: ui.drawGlow,
-                                onDoodleFinished: (doodle) =>
-                                    canvasNotifier.addLayer(doodle, select: false),
-                              )
-                          : null,
-                    ),
-                  ),
-                ),
-                if (isEmpty && ui.mode != EditorMode.draw)
-                  Center(
-                    child: _EmptyCanvasHint(
-                      onAddPhoto: () => _addPhoto(context, ref),
-                      onAddText: () => _addText(context, ref),
-                    ),
-                  ),
-                const Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: SegmentationProgressBar(message: 'Removing background…'),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-      // As the bottom navigation bar, snackbars appear above the tools
-      // instead of covering them.
-      bottomNavigationBar: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 180),
-        child: bottomBar,
+        // As the bottom navigation bar, snackbars appear above the tools
+        // instead of covering them.
+        bottomNavigationBar: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          child: bottomBar,
+        ),
       ),
     );
   }
